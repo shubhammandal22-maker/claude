@@ -1,0 +1,6 @@
+.venv/
+__pycache__/
+*.pyc
+data/preview.png
+data/last_rendered.png
+data/run.log

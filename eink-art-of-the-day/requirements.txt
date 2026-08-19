@@ -1,0 +1,7 @@
+requests>=2.31
+Pillow>=10.0
+
+# On the Pi itself, also needed (Pi-only, won't install on a dev laptop):
+# RPi.GPIO
+# spidev
+# waveshare_epd  -- not on PyPI; see README for how to get it

@@ -1,0 +1,1635 @@
+﻿<title>Inkflow</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,500;12..96,600;12..96,700;12..96,800&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<style>
+  :root{
+    --bg:#F3F0E7; --bg-dot:rgba(35,32,26,0.16);
+    --surface:#FFFFFF; --surface-2:#EBE6D8;
+    --ink:#232220; --ink-soft:#726B5E; --ink-faint:#A79F8C;
+    --accent:#2F5FD6; --accent-ink:#1C3E96;
+    --border:#D9D2BF; --danger:#C0392B;
+    --shadow:rgba(35,30,20,0.14);
+    --node-bg:#FFFFFF; --arrow:#2F5FD6; --arrow-soft:rgba(47,95,214,0.32);
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --bg:#12161D; --bg-dot:rgba(255,255,255,0.10);
+      --surface:#1B212B; --surface-2:#161B23;
+      --ink:#ECE9E1; --ink-soft:#9299A6; --ink-faint:#5B6270;
+      --accent:#5B90FF; --accent-ink:#8FB0FF;
+      --border:#2A3140; --danger:#E0685C;
+      --shadow:rgba(0,0,0,0.5);
+      --node-bg:#1E2530; --arrow:#5B90FF; --arrow-soft:rgba(91,144,255,0.32);
+    }
+  }
+  :root[data-theme="dark"]{
+    --bg:#12161D; --bg-dot:rgba(255,255,255,0.10);
+    --surface:#1B212B; --surface-2:#161B23;
+    --ink:#ECE9E1; --ink-soft:#9299A6; --ink-faint:#5B6270;
+    --accent:#5B90FF; --accent-ink:#8FB0FF;
+    --border:#2A3140; --danger:#E0685C;
+    --shadow:rgba(0,0,0,0.5);
+    --node-bg:#1E2530; --arrow:#5B90FF; --arrow-soft:rgba(91,144,255,0.32);
+  }
+
+  *{ box-sizing:border-box; }
+  html,body{ height:100%; }
+  body{
+    margin:0; background:var(--bg); color:var(--ink);
+    font-family:'IBM Plex Mono', ui-monospace, monospace;
+    overflow:hidden; height:100vh; width:100vw;
+  }
+  @media (prefers-reduced-motion: reduce){
+    *{ transition:none !important; animation:none !important; }
+  }
+
+  h1,h2{ font-family:'Bricolage Grotesque', ui-sans-serif, system-ui, sans-serif; text-wrap:balance; margin:0; }
+
+  button{ font-family:inherit; }
+  button:focus-visible, [contenteditable]:focus-visible, [contenteditable]:focus{
+    outline:2px solid var(--accent); outline-offset:2px;
+  }
+
+  #app{ position:relative; height:100vh; width:100vw; overflow:hidden; }
+
+  .brand-mark{
+    position:fixed; top:14px; left:18px; z-index:50;
+    display:flex; align-items:center; gap:8px;
+    background:none; border:none; cursor:pointer; padding:4px 6px;
+    color:var(--ink); font-family:'Bricolage Grotesque', sans-serif; font-weight:700; font-size:1rem;
+  }
+  .brand-mark svg{ width:20px; height:20px; color:var(--accent); }
+
+  .theme-toggle{
+    position:fixed; top:14px; right:18px; z-index:50;
+    width:36px; height:36px; border-radius:50%;
+    border:1.5px solid var(--border); background:var(--surface);
+    color:var(--ink-soft); cursor:pointer; display:flex; align-items:center; justify-content:center;
+  }
+  .theme-toggle:hover{ color:var(--accent); border-color:var(--accent); }
+  .theme-toggle svg{ width:17px; height:17px; }
+
+  .undo-btn{
+    position:fixed; top:14px; right:62px; z-index:50;
+    width:36px; height:36px; border-radius:50%;
+    border:1.5px solid var(--border); background:var(--surface);
+    color:var(--ink-soft); cursor:pointer; display:flex; align-items:center; justify-content:center;
+  }
+  .undo-btn:hover{ color:var(--accent); border-color:var(--accent); }
+  .undo-btn:disabled{ opacity:0.35; cursor:not-allowed; }
+  .undo-btn:disabled:hover{ color:var(--ink-soft); border-color:var(--border); }
+  .undo-btn svg{ width:17px; height:17px; }
+
+  /* ---------- Home screen ---------- */
+  .screen{ position:absolute; inset:0; }
+  #home-screen{
+    overflow-y:auto;
+    background-image:radial-gradient(var(--bg-dot) 1.4px, transparent 1.4px);
+    background-size:24px 24px;
+  }
+  .home-head{ max-width:920px; margin:0 auto; padding:92px 32px 12px; }
+  .home-head h1{ font-size:clamp(2.2rem, 4vw + 1rem, 3.4rem); letter-spacing:-0.02em; }
+  .home-sub{ color:var(--ink-soft); font-size:0.92rem; margin:10px 0 0; }
+
+  .folder-grid{
+    max-width:920px; margin:0 auto; padding:28px 32px 80px;
+    display:grid; grid-template-columns:repeat(auto-fill, minmax(190px,1fr)); gap:18px;
+  }
+  .folder-tile{
+    position:relative; aspect-ratio:4/3.1; border-radius:12px;
+    border:1.5px dashed var(--border); background:var(--surface);
+    display:flex; flex-direction:column; justify-content:flex-end; gap:8px;
+    padding:16px; cursor:pointer; text-align:left;
+    box-shadow:0 1px 0 var(--shadow);
+  }
+  .folder-tile:hover{ border-color:var(--accent); box-shadow:0 6px 18px var(--shadow); transform:translateY(-2px); }
+  .folder-icon{ position:absolute; top:14px; left:16px; color:var(--accent); }
+  .folder-name{
+    font-family:'Bricolage Grotesque', sans-serif; font-weight:600; font-size:1.02rem;
+    outline:none; cursor:text; line-height:1.3;
+  }
+  .folder-name:empty:before{ content:'Untitled flow'; color:var(--ink-faint); }
+  .folder-delete{
+    position:absolute; top:10px; right:10px; width:24px; height:24px; border-radius:50%;
+    border:none; background:transparent; color:var(--ink-faint); font-size:1rem; line-height:1; cursor:pointer;
+    opacity:0; display:flex; align-items:center; justify-content:center;
+  }
+  .folder-tile:hover .folder-delete{ opacity:1; }
+  .folder-delete:hover{ background:var(--danger); color:#fff; }
+
+  .new-folder-tile{
+    border-style:dashed; align-items:center; justify-content:center; flex-direction:row;
+    gap:8px; color:var(--ink-soft); font-family:'IBM Plex Mono', monospace; font-size:0.85rem;
+  }
+  .new-folder-tile:hover{ color:var(--accent); }
+  .new-folder-tile .plus{ font-size:1.3rem; line-height:1; color:var(--accent); }
+
+  /* ---------- Board screen ---------- */
+  .board-screen{ position:absolute; inset:0; display:flex; flex-direction:row; background:var(--bg); }
+  .board-screen[hidden]{ display:none; }
+
+  .title-rail{
+    width:clamp(230px, 22vw, 320px); flex:none; height:100%;
+    display:flex; flex-direction:column; justify-content:space-between;
+    padding:80px 26px 26px; background:var(--surface-2);
+    border-right:1.5px solid var(--border);
+  }
+  .back-btn{
+    position:absolute; top:14px; left:170px; z-index:20;
+    display:flex; align-items:center; gap:6px;
+    border:none; background:none; color:var(--ink-soft); cursor:pointer;
+    font-family:'IBM Plex Mono', monospace; font-size:0.78rem; letter-spacing:0.03em; text-transform:uppercase;
+    padding:6px 8px;
+  }
+  .back-btn:hover{ color:var(--accent); }
+  .back-btn svg{ width:14px; height:14px; }
+
+  .title-wrap{ flex:1; display:flex; align-items:center; }
+  .board-title{
+    font-size:clamp(1.7rem, 2.6vw + 1rem, 2.6rem); font-weight:700; letter-spacing:-0.02em;
+    line-height:1.12; outline:none; cursor:text; color:var(--ink); word-break:break-word;
+  }
+  .board-title:empty:before{ content:'Untitled flow'; color:var(--ink-faint); }
+
+  .rail-tools{ display:flex; flex-direction:column; gap:14px; }
+  .tool-row{ display:flex; gap:8px; }
+  .tool-btn{
+    flex:1; border:1.5px solid var(--border); background:var(--surface);
+    color:var(--ink); border-radius:8px; padding:9px 10px; cursor:pointer;
+    font-family:'IBM Plex Mono', monospace; font-size:0.76rem; letter-spacing:0.03em; text-transform:uppercase;
+    display:flex; align-items:center; justify-content:center; gap:6px;
+  }
+  .tool-btn:hover{ border-color:var(--accent); color:var(--accent-ink); }
+
+  .rail-label{
+    font-size:0.64rem; letter-spacing:0.09em; text-transform:uppercase;
+    color:var(--ink-faint); margin:0 0 7px;
+  }
+  .format-bar{ display:flex; flex-direction:column; gap:6px; }
+  .format-row{ display:flex; gap:6px; }
+  .fmt-btn{
+    flex:1; border:1.5px solid var(--border); background:var(--surface); color:var(--ink);
+    border-radius:7px; padding:7px 0; cursor:pointer; font-size:0.82rem; line-height:1;
+    display:flex; align-items:center; justify-content:center;
+    font-family:'Bricolage Grotesque', sans-serif;
+  }
+  .fmt-btn:hover{ border-color:var(--accent); color:var(--accent-ink); }
+  .fmt-btn.is-active{ background:var(--accent); border-color:var(--accent); color:#fff; }
+  .fmt-btn:disabled{ opacity:0.38; cursor:not-allowed; }
+  .fmt-btn:disabled:hover{ border-color:var(--border); color:var(--ink); }
+
+  .zoom-controls, .fontsize-controls{
+    display:flex; align-items:center; gap:2px; border:1.5px solid var(--border);
+    border-radius:8px; overflow:hidden; background:var(--surface);
+  }
+  .format-row .fontsize-controls{ flex:1.7; }
+  .zoom-controls .tool-btn, .fontsize-controls .tool-btn{ border:none; border-radius:0; flex:none; width:34px; padding:8px 0; }
+  .format-row .fontsize-controls .tool-btn{ width:24px; }
+  .zoom-level, .fontsize-level{
+    flex:1; text-align:center; font-size:0.72rem; color:var(--ink-soft);
+    font-variant-numeric:tabular-nums;
+  }
+  .rail-hint{ color:var(--ink-faint); font-size:0.68rem; line-height:1.6; margin:0; }
+
+  .arrow-tip{
+    position:fixed; z-index:60; pointer-events:none;
+    background:var(--ink); color:var(--surface);
+    font-family:'IBM Plex Mono', monospace; font-size:0.68rem; letter-spacing:0.02em;
+    padding:4px 8px; border-radius:6px; white-space:nowrap;
+    transform:translate(-50%, -136%);
+    box-shadow:0 4px 12px var(--shadow);
+  }
+  .arrow-tip[hidden]{ display:none; }
+
+  .confirm-overlay{
+    position:fixed; inset:0; z-index:100; background:rgba(20,18,14,0.42);
+    display:flex; align-items:center; justify-content:center;
+  }
+  .confirm-overlay[hidden]{ display:none; }
+  .confirm-box{
+    background:var(--surface); border:1.5px solid var(--border); border-radius:12px;
+    padding:20px 22px; max-width:300px; box-shadow:0 12px 34px var(--shadow);
+  }
+  .confirm-msg{ margin:0 0 16px; font-size:0.86rem; line-height:1.5; color:var(--ink); }
+  .confirm-actions{ display:flex; gap:8px; justify-content:flex-end; }
+  .confirm-btn{
+    border:1.5px solid var(--border); background:var(--surface); color:var(--ink);
+    border-radius:7px; padding:7px 14px; cursor:pointer; font-family:'IBM Plex Mono', monospace;
+    font-size:0.76rem;
+  }
+  .confirm-btn:hover{ border-color:var(--accent); color:var(--accent-ink); }
+  .confirm-btn.confirm-danger{ background:var(--danger); border-color:var(--danger); color:#fff; }
+  .confirm-btn.confirm-danger:hover{ opacity:0.88; color:#fff; }
+
+  .canvas-viewport{
+    position:relative; z-index:2; flex:1; height:100%; overflow:hidden; cursor:default;
+    background-image:radial-gradient(var(--bg-dot) 1.4px, transparent 1.4px);
+    background-size:26px 26px;
+  }
+  .canvas-viewport.panning{ cursor:grabbing; }
+  .canvas-stage{
+    position:absolute; left:0; top:0; transform-origin:0 0;
+    width:100%; height:100%;
+  }
+  .canvas-surface{ position:relative; width:100%; height:100%; }
+
+  .arrows-overlay{ position:absolute; inset:0; z-index:1; overflow:visible; pointer-events:none; }
+  /* sits above .canvas-viewport (z-index:2) so its thin invisible hit-strokes
+     stay clickable even though boxes visually paint over the arrows below;
+     the container itself is pointer-events:none so empty space still passes
+     clicks through to the boxes/canvas beneath for dragging and panning. */
+  .arrows-hit-overlay{ position:absolute; inset:0; z-index:3; overflow:visible; pointer-events:none; }
+  .flow-arrow{ fill:none; stroke:var(--arrow); stroke-width:2; stroke-linecap:round; opacity:0.82; }
+  .flow-arrow--link{ stroke-dasharray:5 4; pointer-events:none; }
+  .flow-arrow--link-hit{ fill:none; stroke:transparent; stroke-width:8; pointer-events:stroke; cursor:pointer; }
+  .flow-arrow--link.is-danger{ stroke:var(--danger); opacity:1; }
+  .flow-arrow--draft{ stroke-dasharray:4 4; opacity:0.75; }
+
+  .node{
+    position:absolute; z-index:2; width:220px; min-width:150px;
+    display:flex; flex-direction:column;
+    background:var(--node-bg); border:1.5px solid var(--border); border-radius:10px;
+    box-shadow:0 3px 14px var(--shadow);
+  }
+  .node.node--link-target{ outline:2px solid var(--accent); outline-offset:3px; }
+  .node-connector{
+    position:absolute; top:-9px; left:50%; transform:translateX(-50%);
+    width:18px; height:18px; border-radius:50%; z-index:3;
+    background:var(--surface); border:1.5px solid var(--accent); color:var(--accent);
+    display:flex; align-items:center; justify-content:center; cursor:alias;
+  }
+  .node-connector:hover{ background:var(--accent); color:#fff; }
+  .node-connector svg{ width:8px; height:8px; }
+  .node-bar{
+    display:flex; align-items:center; justify-content:space-between;
+    flex:none; padding:6px 8px; cursor:grab; touch-action:none;
+    border-bottom:1px dashed var(--border); background:var(--surface-2);
+    border-radius:9px 9px 0 0;
+  }
+  .node-bar:active{ cursor:grabbing; }
+  .node-title{
+    flex:1; min-width:0; outline:none; cursor:text;
+    font-family:'Bricolage Grotesque', sans-serif; font-weight:600; font-size:0.78rem;
+    color:var(--ink); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+    padding:0 6px;
+  }
+  .node-title:empty:before{ content:attr(data-placeholder); color:var(--ink-faint); font-weight:500; }
+  .node-edge{
+    position:absolute; top:32px; bottom:16px; width:9px; z-index:4; cursor:grab;
+  }
+  .node-edge-left{ left:0; }
+  .node-edge-right{ right:0; }
+  .node-edge:active{ cursor:grabbing; }
+  .node-delete{
+    width:18px; height:18px; border-radius:50%; border:none; background:transparent;
+    color:var(--ink-faint); cursor:pointer; font-size:0.85rem; line-height:1;
+    display:flex; align-items:center; justify-content:center;
+  }
+  .node-delete:hover{ background:var(--danger); color:#fff; }
+
+  .node-body{
+    flex:1 1 auto; padding:10px 14px 12px; min-height:50px; outline:none; cursor:text;
+    font-size:0.83rem; line-height:1.55; color:var(--ink); word-break:break-word;
+    overflow-y:auto;
+  }
+  .node-body:empty:before{ content:attr(data-placeholder); color:var(--ink-faint); }
+  .node-body b, .node-body strong{ font-weight:700; }
+  .node-body i, .node-body em{ font-style:italic; }
+  .node-body h1, .node-body h2, .node-body h3{
+    font-family:'Bricolage Grotesque', sans-serif; font-weight:700; font-size:1.15em;
+    letter-spacing:-0.01em; margin:2px 0;
+  }
+  .node-body ul, .node-body ol{ margin:4px 0; padding-left:1.3em; }
+  .node-body li{ margin:1px 0; }
+  .node-body li::marker{ color:var(--accent); }
+
+  .link-thumb{
+    position:relative; width:100%; aspect-ratio:16/10; overflow:hidden;
+    display:flex; align-items:center; justify-content:center;
+    background:var(--surface-2); border-bottom:1px dashed var(--border);
+  }
+  .link-thumb[hidden]{ display:none; }
+  .link-thumb-img{ width:100%; height:100%; object-fit:cover; display:block; }
+  .link-thumb-img[hidden]{ display:none; }
+  .link-thumb-icon{
+    width:40px; height:40px; border-radius:50%; color:#fff;
+    display:flex; align-items:center; justify-content:center;
+    font-family:'Bricolage Grotesque', sans-serif; font-weight:700; font-size:0.72rem; letter-spacing:0.02em;
+    background:var(--ink-faint);
+  }
+  .link-thumb-icon[hidden]{ display:none; }
+  .link-thumb[data-platform="youtube"] .link-thumb-icon{ background:#D8342A; }
+  .link-thumb[data-platform="instagram"] .link-thumb-icon{ background:radial-gradient(circle at 30% 110%, #ffdb8b 0%, #ee2a7b 55%, #6228d7 100%); }
+  .link-thumb[data-platform="pinterest"] .link-thumb-icon{ background:#C8232C; }
+  .link-embed{ width:100%; overflow:hidden; position:relative; border-bottom:1px dashed var(--border); }
+  .link-embed iframe{ display:block; transform-origin:top left; }
+  .link-status{
+    padding:12px; font-size:0.7rem; line-height:1.5; color:var(--ink-soft);
+    text-align:center; border-bottom:1px dashed var(--border); background:var(--surface-2);
+  }
+  .link-body{ display:flex; align-items:flex-start; gap:4px; padding:8px 8px 10px 12px; }
+  .link-url{
+    flex:1; min-width:0; outline:none; cursor:text; font-size:0.74rem; line-height:1.5;
+    color:var(--ink-soft); white-space:pre-wrap; word-break:break-word;
+  }
+  .link-url:empty:before{ content:attr(data-placeholder); color:var(--ink-faint); }
+  .link-open{
+    flex:none; width:22px; height:22px; margin-top:1px; border-radius:6px;
+    display:flex; align-items:center; justify-content:center; color:var(--ink-faint);
+  }
+  .link-open:hover{ color:var(--accent); background:var(--surface-2); }
+  .link-open svg{ width:13px; height:13px; }
+  .link-open[hidden]{ display:none; }
+
+  .node-img{ display:block; width:100%; height:auto; border-bottom:1px dashed var(--border); }
+  .node-caption{
+    padding:8px 12px; font-size:0.72rem; color:var(--ink-soft); white-space:pre-wrap; outline:none; cursor:text;
+  }
+  .node-caption:empty:before{ content:attr(data-placeholder); color:var(--ink-faint); }
+  .node-resize{
+    position:absolute; right:0; bottom:0; width:16px; height:16px; cursor:nwse-resize;
+    background:
+      linear-gradient(135deg, transparent 0 45%, var(--ink-faint) 45% 55%, transparent 55% 100%),
+      linear-gradient(135deg, transparent 0 65%, var(--ink-faint) 65% 75%, transparent 75% 100%);
+    opacity:0.6;
+  }
+  .node:hover .node-resize{ opacity:1; }
+  .node-link .node-resize{ cursor:ew-resize; }
+</style>
+
+<div id="app">
+  <button class="brand-mark" id="brand-home-btn" type="button" aria-label="Go to folders">
+    <svg viewBox="0 0 24 20" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M1 3.5C1 2.12 2.12 1 3.5 1H9l2 2h9c1.38 0 2.5 1.12 2.5 2.5v11C22.5 17.88 21.38 19 20 19H3.5C2.12 19 1 17.88 1 16.5v-13Z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg>
+    Inkflow
+  </button>
+  <button class="undo-btn" id="undo-btn" type="button" aria-label="Undo" title="Undo (Ctrl+Z)" disabled>
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 10h11a5 5 0 0 1 0 10h-3"/><path d="M3 10l5-5M3 10l5 5"/></svg>
+  </button>
+  <button class="theme-toggle" id="theme-toggle" type="button" aria-label="Toggle theme">
+    <svg id="theme-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4.2"/><path d="M12 2.5v2.6M12 18.9v2.6M4.6 4.6l1.85 1.85M17.55 17.55l1.85 1.85M2.5 12h2.6M18.9 12h2.6M4.6 19.4l1.85-1.85M17.55 6.45l1.85-1.85"/></svg>
+  </button>
+
+  <div class="arrow-tip" id="arrow-tip" hidden>Delete</div>
+
+  <div class="confirm-overlay" id="confirm-overlay" hidden>
+    <div class="confirm-box">
+      <p class="confirm-msg"></p>
+      <div class="confirm-actions">
+        <button class="confirm-btn confirm-cancel" type="button">Cancel</button>
+        <button class="confirm-btn confirm-danger" type="button">Delete</button>
+      </div>
+    </div>
+  </div>
+
+  <section id="home-screen" class="screen">
+    <header class="home-head">
+      <h1>Inkflow</h1>
+      <p class="home-sub">Folders of flows. Open one to sketch boxes, arrows and pictures.</p>
+    </header>
+    <div class="folder-grid" id="folder-grid">
+
+      <div class="folder-tile" data-folder-id="welcome">
+        <button class="folder-delete" type="button" aria-label="Delete flow">×</button>
+        <div class="folder-icon" aria-hidden="true">
+          <svg viewBox="0 0 24 20" width="26" height="22" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M1 3.5C1 2.12 2.12 1 3.5 1H9l2 2h9c1.38 0 2.5 1.12 2.5 2.5v11C22.5 17.88 21.38 19 20 19H3.5C2.12 19 1 17.88 1 16.5v-13Z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg>
+        </div>
+        <div class="folder-name" contenteditable="true" spellcheck="false">Welcome</div>
+      </div>
+
+      <button class="folder-tile new-folder-tile" id="new-folder-btn" type="button">
+        <span class="plus">+</span><span>New flow</span>
+      </button>
+    </div>
+  </section>
+
+  <div id="boards-root">
+    <section class="board-screen" id="board-welcome" data-folder-id="welcome" hidden>
+      <button class="back-btn" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>Folders</button>
+      <div class="title-rail">
+        <div class="title-wrap"><h2 class="board-title" contenteditable="true" spellcheck="false">Welcome</h2></div>
+        <div class="rail-tools">
+          <div class="tool-row">
+            <button class="tool-btn add-box-btn" type="button">+ Box</button>
+            <button class="tool-btn add-image-btn" type="button">+ Image</button>
+          </div>
+          <div class="tool-row">
+            <button class="tool-btn add-link-btn" type="button">+ Link</button>
+          </div>
+          <input class="file-input" type="file" accept="image/*" hidden>
+          <div>
+            <p class="rail-label">Format</p>
+            <div class="format-bar">
+              <div class="format-row">
+                <button class="fmt-btn" data-fmt="bold" type="button" title="Bold"><b>B</b></button>
+                <button class="fmt-btn" data-fmt="italic" type="button" title="Italic"><i>I</i></button>
+                <button class="fmt-btn" data-fmt="h" type="button" title="Heading">H</button>
+                <button class="fmt-btn" data-fmt="center" type="button" title="Center align">≡</button>
+              </div>
+              <div class="format-row">
+                <button class="fmt-btn" data-fmt="bullet" type="button" title="Bullet list">•</button>
+                <button class="fmt-btn" data-fmt="number" type="button" title="Numbered list">1.</button>
+                <div class="fontsize-controls" artifact-local>
+                  <button class="tool-btn fontsize-dec" type="button" aria-label="Decrease text size">−</button>
+                  <span class="fontsize-level">13px</span>
+                  <button class="tool-btn fontsize-inc" type="button" aria-label="Increase text size">+</button>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="zoom-controls" artifact-local>
+            <button class="tool-btn zoom-out" type="button" aria-label="Zoom out">−</button>
+            <span class="zoom-level">100%</span>
+            <button class="tool-btn zoom-in" type="button" aria-label="Zoom in">+</button>
+          </div>
+          <p class="rail-hint">Drag a box by its top bar or side edges · click a title to rename it · click the dot on top to link boxes · select text to format or resize it, just like a document · paste an image anywhere · scroll to zoom</p>
+        </div>
+      </div>
+      <div class="canvas-viewport">
+        <div class="canvas-stage" artifact-local data-pan-x="0" data-pan-y="0" data-scale="1">
+          <div class="canvas-surface" artifact-sync>
+            <div class="node" data-type="text" data-node-id="seed-a" style="left:60px;top:70px;width:230px;">
+              <div class="node-connector" title="Drag to link to another box" aria-label="Link to another box"><svg viewBox="0 0 16 16"><circle cx="8" cy="8" r="3" fill="currentColor"/></svg></div>
+              <div class="node-bar"><div class="node-title" contenteditable="true" spellcheck="false" data-placeholder="Untitled"></div><button class="node-delete" type="button" aria-label="Delete box">×</button></div>
+              <div class="node-body" contenteditable="true" spellcheck="false" data-placeholder="Write here…">This is a box. Select text and use the tools on the left, just like a normal document.</div>
+              <div class="node-edge node-edge-left"></div>
+              <div class="node-edge node-edge-right"></div>
+              <div class="node-resize"></div>
+            </div>
+            <div class="node" data-type="text" data-node-id="seed-b" style="left:340px;top:220px;width:230px;">
+              <div class="node-connector" title="Drag to link to another box" aria-label="Link to another box"><svg viewBox="0 0 16 16"><circle cx="8" cy="8" r="3" fill="currentColor"/></svg></div>
+              <div class="node-bar"><div class="node-title" contenteditable="true" spellcheck="false" data-placeholder="Untitled"></div><button class="node-delete" type="button" aria-label="Delete box">×</button></div>
+              <div class="node-body" contenteditable="true" spellcheck="false" data-placeholder="Write here…">Every box stays wired to the title.
+                <ul>
+                  <li>Add more with + Box</li>
+                  <li>Paste a screenshot, or use + Image</li>
+                  <li>Drag a box by its top bar or side edges</li>
+                </ul>
+              </div>
+              <div class="node-edge node-edge-left"></div>
+              <div class="node-edge node-edge-right"></div>
+              <div class="node-resize"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <svg class="arrows-overlay" artifact-local></svg>
+      <svg class="arrows-hit-overlay" artifact-local></svg>
+    </section>
+  </div>
+</div>
+
+<template id="tpl-folder">
+  <div class="folder-tile" data-folder-id="">
+    <button class="folder-delete" type="button" aria-label="Delete flow">×</button>
+    <div class="folder-icon" aria-hidden="true"><svg viewBox="0 0 24 20" width="26" height="22" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M1 3.5C1 2.12 2.12 1 3.5 1H9l2 2h9c1.38 0 2.5 1.12 2.5 2.5v11C22.5 17.88 21.38 19 20 19H3.5C2.12 19 1 17.88 1 16.5v-13Z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg></div>
+    <div class="folder-name" contenteditable="true" spellcheck="false"></div>
+  </div>
+</template>
+
+<template id="tpl-board">
+  <section class="board-screen" data-folder-id="" hidden>
+    <button class="back-btn" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>Folders</button>
+    <div class="title-rail">
+      <div class="title-wrap"><h2 class="board-title" contenteditable="true" spellcheck="false"></h2></div>
+      <div class="rail-tools">
+        <div class="tool-row">
+          <button class="tool-btn add-box-btn" type="button">+ Box</button>
+          <button class="tool-btn add-image-btn" type="button">+ Image</button>
+        </div>
+        <div class="tool-row">
+          <button class="tool-btn add-link-btn" type="button">+ Link</button>
+        </div>
+        <input class="file-input" type="file" accept="image/*" hidden>
+        <div>
+          <p class="rail-label">Format</p>
+          <div class="format-bar">
+            <div class="format-row">
+              <button class="fmt-btn" data-fmt="bold" type="button" title="Bold"><b>B</b></button>
+              <button class="fmt-btn" data-fmt="italic" type="button" title="Italic"><i>I</i></button>
+              <button class="fmt-btn" data-fmt="h" type="button" title="Heading">H</button>
+              <button class="fmt-btn" data-fmt="center" type="button" title="Center align">≡</button>
+            </div>
+            <div class="format-row">
+              <button class="fmt-btn" data-fmt="bullet" type="button" title="Bullet list">•</button>
+              <button class="fmt-btn" data-fmt="number" type="button" title="Numbered list">1.</button>
+              <div class="fontsize-controls" artifact-local>
+                <button class="tool-btn fontsize-dec" type="button" aria-label="Decrease text size">−</button>
+                <span class="fontsize-level">13px</span>
+                <button class="tool-btn fontsize-inc" type="button" aria-label="Increase text size">+</button>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="zoom-controls" artifact-local>
+          <button class="tool-btn zoom-out" type="button" aria-label="Zoom out">−</button>
+          <span class="zoom-level">100%</span>
+          <button class="tool-btn zoom-in" type="button" aria-label="Zoom in">+</button>
+        </div>
+        <p class="rail-hint">Drag a box by its top bar or side edges · click a title to rename it · click the dot on top to link boxes · select text to format or resize it, just like a document · paste an image anywhere · scroll to zoom</p>
+      </div>
+    </div>
+    <div class="canvas-viewport">
+      <div class="canvas-stage" artifact-local data-pan-x="0" data-pan-y="0" data-scale="1">
+        <div class="canvas-surface" artifact-sync></div>
+      </div>
+    </div>
+    <svg class="arrows-overlay" artifact-local></svg>
+      <svg class="arrows-hit-overlay" artifact-local></svg>
+  </section>
+</template>
+
+<template id="tpl-node-text">
+  <div class="node" data-type="text" style="left:40px;top:40px;width:220px;">
+    <div class="node-connector" title="Drag to link to another box" aria-label="Link to another box"><svg viewBox="0 0 16 16"><circle cx="8" cy="8" r="3" fill="currentColor"/></svg></div>
+    <div class="node-bar"><div class="node-title" contenteditable="true" spellcheck="false" data-placeholder="Untitled"></div><button class="node-delete" type="button" aria-label="Delete box">×</button></div>
+    <div class="node-body" contenteditable="true" spellcheck="false" data-placeholder="Write here…"></div>
+    <div class="node-edge node-edge-left"></div>
+    <div class="node-edge node-edge-right"></div>
+    <div class="node-resize"></div>
+  </div>
+</template>
+
+<template id="tpl-node-image">
+  <div class="node node-image" data-type="image" style="left:40px;top:40px;width:240px;">
+    <div class="node-connector" title="Drag to link to another box" aria-label="Link to another box"><svg viewBox="0 0 16 16"><circle cx="8" cy="8" r="3" fill="currentColor"/></svg></div>
+    <div class="node-bar"><div class="node-title" contenteditable="true" spellcheck="false" data-placeholder="Untitled"></div><button class="node-delete" type="button" aria-label="Delete box">×</button></div>
+    <img class="node-img" alt="Pasted image">
+    <div class="node-caption" contenteditable="true" spellcheck="false" data-placeholder="Caption…"></div>
+    <div class="node-edge node-edge-left"></div>
+    <div class="node-edge node-edge-right"></div>
+    <div class="node-resize"></div>
+  </div>
+</template>
+
+<template id="tpl-node-link">
+  <div class="node node-link" data-type="link" style="left:40px;top:40px;width:240px;">
+    <div class="node-connector" title="Drag to link to another box" aria-label="Link to another box"><svg viewBox="0 0 16 16"><circle cx="8" cy="8" r="3" fill="currentColor"/></svg></div>
+    <div class="node-bar"><div class="node-title" contenteditable="true" spellcheck="false" data-placeholder="Untitled"></div><button class="node-delete" type="button" aria-label="Delete box">×</button></div>
+    <div class="link-thumb" data-platform="">
+      <img class="link-thumb-img" alt="" hidden>
+      <div class="link-thumb-icon" hidden></div>
+    </div>
+    <div class="link-embed" hidden></div>
+    <div class="link-status" hidden></div>
+    <div class="link-body">
+      <div class="link-url" contenteditable="true" spellcheck="false" data-placeholder="Paste a YouTube, Instagram or Pinterest link…"></div>
+      <a class="link-open" href="#" target="_blank" rel="noopener" aria-label="Open link" hidden><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6 10L10 6M10 6H6.5M10 6V9.5"/><path d="M8 3H4.5A1.5 1.5 0 0 0 3 4.5v7A1.5 1.5 0 0 0 4.5 13h7a1.5 1.5 0 0 0 1.5-1.5V8"/></svg></a>
+    </div>
+    <div class="node-edge node-edge-left"></div>
+    <div class="node-edge node-edge-right"></div>
+    <div class="node-resize"></div>
+  </div>
+</template>
+
+<script>
+(function(){
+  "use strict";
+
+  var app = document.getElementById('app');
+  var boardsRoot = document.getElementById('boards-root');
+  var folderGrid = document.getElementById('folder-grid');
+  var zCounter = 10;
+  var idCounter = 1;
+  var nodeIdCounter = 1;
+  var activeNodeBody = null;
+  var activeSizeTarget = null;
+
+  /* ---------- custom confirm dialog (native confirm() is blocked in the sandboxed artifact view) ---------- */
+  var confirmOverlay = document.getElementById('confirm-overlay');
+  var confirmMsgEl = confirmOverlay.querySelector('.confirm-msg');
+  var confirmOkBtn = confirmOverlay.querySelector('.confirm-danger');
+  var confirmCancelBtn = confirmOverlay.querySelector('.confirm-cancel');
+  var confirmResolve = null;
+  function showConfirm(message){
+    confirmMsgEl.textContent = message;
+    confirmOverlay.hidden = false;
+    return new Promise(function(resolve){ confirmResolve = resolve; });
+  }
+  function hideConfirm(result){
+    confirmOverlay.hidden = true;
+    if (confirmResolve){ confirmResolve(result); confirmResolve = null; }
+  }
+  confirmOkBtn.addEventListener('click', function(){ hideConfirm(true); });
+  confirmCancelBtn.addEventListener('click', function(){ hideConfirm(false); });
+  confirmOverlay.addEventListener('click', function(e){ if (e.target === confirmOverlay) hideConfirm(false); });
+  document.addEventListener('keydown', function(e){ if (!confirmOverlay.hidden && e.key === 'Escape') hideConfirm(false); });
+
+  /* ---------- artifact capability (live doc) ---------- */
+  var artifactCapPromise = null;
+  function getArtifactCap(){
+    if (!artifactCapPromise){
+      artifactCapPromise = (window.claude && window.claude.use) ? window.claude.use('artifact') : Promise.resolve(null);
+    }
+    return artifactCapPromise;
+  }
+  function withSync(fn){
+    getArtifactCap().then(function(cap){
+      if (cap && cap.sync){ cap.sync(fn); } else { fn(); }
+    });
+  }
+
+  /* ---------- theme ---------- */
+  var THEME_KEY = 'inkflow-theme';
+  function applyTheme(t){
+    if (t === 'dark' || t === 'light') document.documentElement.setAttribute('data-theme', t);
+    else document.documentElement.removeAttribute('data-theme');
+  }
+  try {
+    var savedTheme = localStorage.getItem(THEME_KEY);
+    if (savedTheme) applyTheme(savedTheme);
+  } catch(e){}
+  document.getElementById('theme-toggle').addEventListener('click', function(){
+    var current = document.documentElement.getAttribute('data-theme');
+    var next = current === 'dark' ? 'light' : (current === 'light' ? null : (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'light' : 'dark'));
+    applyTheme(next);
+    try { if (next) localStorage.setItem(THEME_KEY, next); else localStorage.removeItem(THEME_KEY); } catch(e){}
+  });
+
+  /* ---------- navigation ---------- */
+  function goHome(){
+    document.querySelectorAll('.board-screen').forEach(function(b){ b.hidden = true; });
+    document.getElementById('home-screen').hidden = false;
+  }
+  function openFolder(id){
+    if (!id) return;
+    document.getElementById('home-screen').hidden = true;
+    document.querySelectorAll('.board-screen').forEach(function(b){
+      b.hidden = (b.dataset.folderId !== id);
+    });
+    var board = boardsRoot.querySelector('.board-screen[data-folder-id="' + cssEscape(id) + '"]');
+    if (board){
+      requestAnimationFrame(function(){ requestAnimationFrame(function(){ updateArrows(board); }); });
+    }
+  }
+  function cssEscape(s){
+    return String(s).replace(/[^a-zA-Z0-9_-]/g, function(c){ return '\\' + c; });
+  }
+
+  /* pan/drag/resize/link handlers call preventDefault() on pointerdown to avoid
+     accidental text selection, which also suppresses the browser's normal
+     blur-on-click-away — so whatever editable field (box title, box body,
+     link url, etc.) was focused stayed focused and visibly highlighted.
+     Call this at the start of those handlers to blur it explicitly. */
+  function blurActiveEditable(){
+    var el = document.activeElement;
+    if (el && el.isContentEditable && typeof el.blur === 'function') el.blur();
+  }
+
+  /* ---------- undo (deletions only: boxes, links/arrows, folders) ---------- */
+  var undoStack = [];
+  var UNDO_LIMIT = 50;
+  var undoBtn = document.getElementById('undo-btn');
+  function updateUndoBtn(){ undoBtn.disabled = undoStack.length === 0; }
+  function pushUndo(action){
+    undoStack.push(action);
+    if (undoStack.length > UNDO_LIMIT) undoStack.shift();
+    updateUndoBtn();
+  }
+  function undo(){
+    var action = undoStack.pop();
+    if (!action) return;
+    action();
+    updateUndoBtn();
+  }
+  undoBtn.addEventListener('click', undo);
+  document.addEventListener('keydown', function(e){
+    if (!(e.ctrlKey || e.metaKey) || e.shiftKey || e.key.toLowerCase() !== 'z') return;
+    var ae = document.activeElement;
+    if (ae && ae.isContentEditable) return; // let native text-undo run inside editable fields
+    e.preventDefault();
+    undo();
+  });
+
+  /* ---------- hover tooltip for deletable link arrows ---------- */
+  var arrowTip = document.getElementById('arrow-tip');
+  function showArrowTip(x, y){
+    arrowTip.style.left = x + 'px';
+    arrowTip.style.top = y + 'px';
+    arrowTip.hidden = false;
+  }
+  function hideArrowTip(){ arrowTip.hidden = true; }
+
+  document.getElementById('brand-home-btn').addEventListener('click', goHome);
+
+  /* ---------- folder creation / deletion ---------- */
+  document.getElementById('new-folder-btn').addEventListener('click', function(){
+    var id = 'f' + Date.now().toString(36) + (idCounter++);
+    var tileFrag = document.getElementById('tpl-folder').content.cloneNode(true);
+    var tile = tileFrag.querySelector('.folder-tile');
+    tile.dataset.folderId = id;
+    folderGrid.insertBefore(tileFrag, document.getElementById('new-folder-btn'));
+
+    var boardFrag = document.getElementById('tpl-board').content.cloneNode(true);
+    var board = boardFrag.querySelector('.board-screen');
+    board.dataset.folderId = id;
+    boardsRoot.appendChild(boardFrag);
+
+    var newTile = folderGrid.querySelector('.folder-tile[data-folder-id="' + cssEscape(id) + '"] .folder-name');
+    if (newTile) newTile.focus();
+  });
+
+  /* ---------- delegated click handling ---------- */
+  app.addEventListener('click', function(e){
+    var t = e.target;
+
+    var delBtn = t.closest('.folder-delete');
+    if (delBtn){
+      var tile = delBtn.closest('.folder-tile');
+      var fid = tile.dataset.folderId;
+      var name = tile.querySelector('.folder-name').textContent.trim() || 'this flow';
+      showConfirm('Delete "' + name + '" and everything drawn in it?').then(function(ok){
+        if (!ok) return;
+        var tileParent = tile.parentNode, tileNext = tile.nextSibling;
+        var board = boardsRoot.querySelector('.board-screen[data-folder-id="' + cssEscape(fid) + '"]');
+        var boardParent = board && board.parentNode, boardNext = board && board.nextSibling;
+        tile.remove();
+        if (board) board.remove();
+        pushUndo(function(){
+          tileParent.insertBefore(tile, tileNext);
+          if (board) boardParent.insertBefore(board, boardNext);
+        });
+      });
+      return;
+    }
+
+    var tileEl = t.closest('.folder-tile');
+    if (tileEl && !tileEl.classList.contains('new-folder-tile') && !t.closest('.folder-name')){
+      openFolder(tileEl.dataset.folderId);
+      return;
+    }
+
+    var backBtn = t.closest('.back-btn');
+    if (backBtn){ goHome(); return; }
+
+    var addBox = t.closest('.add-box-btn');
+    if (addBox){
+      var boardEl = addBox.closest('.board-screen');
+      addTextNode(boardEl);
+      return;
+    }
+
+    var addImg = t.closest('.add-image-btn');
+    if (addImg){
+      var boardEl2 = addImg.closest('.board-screen');
+      boardEl2.querySelector('.file-input').click();
+      return;
+    }
+
+    var addLink = t.closest('.add-link-btn');
+    if (addLink){
+      var boardEl5 = addLink.closest('.board-screen');
+      addLinkNode(boardEl5);
+      return;
+    }
+
+    var delNode = t.closest('.node-delete');
+    if (delNode){
+      var node = delNode.closest('.node');
+      var boardEl3 = node.closest('.board-screen');
+      if (node === activeNodeBody || (activeNodeBody && node.contains(activeNodeBody))) activeNodeBody = null;
+      if (node === activeSizeTarget || (activeSizeTarget && node.contains(activeSizeTarget))) activeSizeTarget = null;
+      var nodeParent = node.parentNode, nodeNext = node.nextSibling;
+      var linkSnapshots = [];
+      if (node.dataset.nodeId){
+        var delNid = node.dataset.nodeId;
+        boardEl3.querySelectorAll('.node[data-links-to]').forEach(function(n){
+          if (n.dataset.linksTo.split(' ').indexOf(delNid) !== -1) linkSnapshots.push({ node: n, prev: n.dataset.linksTo });
+        });
+      }
+      removeNodeLinks(node);
+      node.remove();
+      scheduleArrowUpdate(boardEl3);
+      pushUndo(function(){
+        nodeParent.insertBefore(node, nodeNext);
+        observeNode(node);
+        linkSnapshots.forEach(function(s){ s.node.dataset.linksTo = s.prev; });
+        scheduleArrowUpdate(boardEl3);
+      });
+      return;
+    }
+
+    var zoomIn = t.closest('.zoom-in');
+    if (zoomIn){ nudgeZoom(zoomIn.closest('.board-screen'), 0.15); return; }
+    var zoomOut = t.closest('.zoom-out');
+    if (zoomOut){ nudgeZoom(zoomOut.closest('.board-screen'), -0.15); return; }
+
+    var fsInc = t.closest('.fontsize-inc');
+    if (fsInc){ nudgeFontSize(1); return; }
+    var fsDec = t.closest('.fontsize-dec');
+    if (fsDec){ nudgeFontSize(-1); return; }
+
+    var fmtBtn = t.closest('.fmt-btn');
+    if (fmtBtn){ applyFormat(fmtBtn.dataset.fmt); return; }
+  });
+
+  app.addEventListener('mousedown', function(e){
+    if (e.target.closest('.fmt-btn') || e.target.closest('.fontsize-dec') || e.target.closest('.fontsize-inc')) e.preventDefault();
+  });
+
+  app.addEventListener('change', function(e){
+    if (!e.target.classList.contains('file-input')) return;
+    var input = e.target;
+    var boardEl = input.closest('.board-screen');
+    var file = input.files && input.files[0];
+    input.value = '';
+    if (!file) return;
+    fileToCompressedDataURL(file).then(function(dataUrl){
+      withSync(function(){ addImageNode(boardEl, dataUrl); });
+    });
+  });
+
+  /* ---------- node creation ---------- */
+  function nextCascadePos(surface){
+    var count = surface.querySelectorAll('.node').length;
+    var col = count % 5, row = Math.floor(count / 5);
+    return { x: 40 + col * 250, y: 40 + row * 170 };
+  }
+
+  function addTextNode(boardEl){
+    var surface = boardEl.querySelector('.canvas-surface');
+    var pos = nextCascadePos(surface);
+    var frag = document.getElementById('tpl-node-text').content.cloneNode(true);
+    var node = frag.querySelector('.node');
+    node.style.left = pos.x + 'px';
+    node.style.top = pos.y + 'px';
+    ensureNodeId(node);
+    surface.appendChild(frag);
+    var appended = surface.lastElementChild;
+    observeNode(appended);
+    scheduleArrowUpdate(boardEl);
+    var body = appended.querySelector('.node-body');
+    if (body) body.focus();
+  }
+
+  function addImageNode(boardEl, dataUrl){
+    var surface = boardEl.querySelector('.canvas-surface');
+    var pos = nextCascadePos(surface);
+    var frag = document.getElementById('tpl-node-image').content.cloneNode(true);
+    var node = frag.querySelector('.node');
+    node.style.left = pos.x + 'px';
+    node.style.top = pos.y + 'px';
+    ensureNodeId(node);
+    frag.querySelector('.node-img').src = dataUrl;
+    surface.appendChild(frag);
+    var appended = surface.lastElementChild;
+    observeNode(appended);
+    scheduleArrowUpdate(boardEl);
+  }
+
+  function ensureNodeId(node){
+    if (!node.dataset.nodeId) node.dataset.nodeId = 'n' + Date.now().toString(36) + (nodeIdCounter++);
+    return node.dataset.nodeId;
+  }
+
+  function addLinkNode(boardEl){
+    var surface = boardEl.querySelector('.canvas-surface');
+    var pos = nextCascadePos(surface);
+    var frag = document.getElementById('tpl-node-link').content.cloneNode(true);
+    var node = frag.querySelector('.node');
+    node.style.left = pos.x + 'px';
+    node.style.top = pos.y + 'px';
+    ensureNodeId(node);
+    surface.appendChild(frag);
+    var appended = surface.lastElementChild;
+    observeNode(appended);
+    updateLinkNode(appended);
+    scheduleArrowUpdate(boardEl);
+    var urlEl = appended.querySelector('.link-url');
+    if (urlEl) urlEl.focus();
+  }
+
+  /* ---------- link boxes: platform detection + thumbnail ---------- */
+  function detectPlatform(url){
+    if (/youtu\.?be/i.test(url)) return 'youtube';
+    if (/instagram\.com/i.test(url)) return 'instagram';
+    if (/pinterest\.[a-z.]+|pin\.it/i.test(url)) return 'pinterest';
+    return '';
+  }
+  function youtubeId(url){
+    var m = url.match(/(?:youtu\.be\/|youtube\.com\/(?:watch\?v=|shorts\/|embed\/))([a-zA-Z0-9_-]{6,})/i);
+    return m ? m[1] : null;
+  }
+  var PLATFORM_LABEL = { youtube: 'YT', instagram: 'IG', pinterest: 'PIN' };
+
+  /* Instagram/Pinterest previews use each platform's own official embed
+     widget (a blockquote/anchor processed by a script loaded from their
+     domain) — the same technique any website uses to embed a public post.
+     It only works when this page can load an external script: inside the
+     sandboxed Artifact preview it can't (by design), so those boxes will
+     always fall back to the "can't preview" message there; opening the
+     actual .html file directly, it loads real previews for public posts.
+     There's no clean "this post is private" signal available client-side,
+     so a private/deleted/blocked post and a sandboxed preview look the
+     same: the widget just never produces anything to show. */
+  function loadScriptOnce(src, isReady){
+    return new Promise(function(resolve){
+      if (isReady()){ resolve(); return; }
+      var done = false;
+      var finish = function(){ if (!done){ done = true; resolve(); } };
+      /* A CSP-blocked script (e.g. inside the sandboxed Artifact preview) may
+         not fire 'error' in every browser, which would otherwise leave this
+         promise — and the box — hanging forever. This timeout guarantees we
+         always move on to the fallback message instead. */
+      setTimeout(finish, 3000);
+      var existing = document.querySelector('script[data-embed-src="' + src + '"]');
+      if (existing){
+        existing.addEventListener('load', finish);
+        existing.addEventListener('error', finish);
+        return;
+      }
+      var s = document.createElement('script');
+      s.src = src;
+      s.async = true;
+      s.dataset.embedSrc = src;
+      s.addEventListener('load', finish);
+      s.addEventListener('error', finish);
+      document.head.appendChild(s);
+    });
+  }
+
+  function linkGenCurrent(node){ return parseInt(node.dataset.linkGen || '0', 10); }
+
+  function showLinkFallback(node, gen, message){
+    if (linkGenCurrent(node) !== gen) return;
+    var embedHost = node.querySelector('.link-embed');
+    var statusEl = node.querySelector('.link-status');
+    embedHost.hidden = true;
+    embedHost.innerHTML = '';
+    node.querySelector('.link-thumb').hidden = false;
+    statusEl.hidden = false;
+    statusEl.textContent = message;
+  }
+
+  /* Instagram/Pinterest render their embed iframe at a fixed native pixel
+     size chosen for their OWN default width, not ours — forcing the iframe's
+     CSS width to 100% (as an earlier version of this did) stretches only the
+     width while the height stays whatever they computed, distorting the
+     post's real aspect ratio. Scaling the whole iframe uniformly instead
+     preserves it exactly, whatever shape the post is (square/portrait/Reel).
+     A ResizeObserver keeps re-fitting if Instagram adjusts the size later
+     (e.g. once the image/video finishes loading). */
+  function fitEmbedIframe(node){
+    var embedHost = node.querySelector('.link-embed');
+    var iframe = embedHost && embedHost.querySelector('iframe');
+    if (!iframe) return;
+    var w = iframe.offsetWidth, h = iframe.offsetHeight;
+    if (!w || !h) return;
+    var scale = embedHost.clientWidth / w;
+    iframe.style.transform = 'scale(' + scale + ')';
+    embedHost.style.height = Math.round(h * scale) + 'px';
+  }
+
+  function showLinkEmbed(node, gen){
+    if (linkGenCurrent(node) !== gen) return;
+    node.querySelector('.link-thumb').hidden = true;
+    node.querySelector('.link-status').hidden = true;
+    node.querySelector('.link-embed').hidden = false;
+    var iframe = node.querySelector('.link-embed iframe');
+    if (iframe){
+      fitEmbedIframe(node);
+      if (node._iframeRO) node._iframeRO.disconnect();
+      var ro = new ResizeObserver(function(){ fitEmbedIframe(node); });
+      ro.observe(iframe);
+      node._iframeRO = ro;
+    }
+    scheduleArrowUpdate(node.closest('.board-screen'));
+  }
+
+  function embedInstagram(node, gen, url){
+    var embedHost = node.querySelector('.link-embed');
+    var safeUrl = url.replace(/"/g, '&quot;');
+    embedHost.innerHTML = '<blockquote class="instagram-media" data-instgrm-permalink="' + safeUrl + '" data-instgrm-version="14"><a href="' + safeUrl + '"></a></blockquote>';
+    loadScriptOnce('https://www.instagram.com/embed.js', function(){ return !!(window.instgrm && window.instgrm.Embeds); }).then(function(){
+      if (linkGenCurrent(node) !== gen) return;
+      if (window.instgrm && window.instgrm.Embeds) window.instgrm.Embeds.process();
+      setTimeout(function(){
+        if (embedHost.querySelector('iframe')) showLinkEmbed(node, gen);
+        else showLinkFallback(node, gen, "Can't preview this post — it may be private, deleted, or previews are blocked in this view.");
+      }, 3500);
+    });
+  }
+
+  function embedPinterest(node, gen, url){
+    var embedHost = node.querySelector('.link-embed');
+    var safeUrl = url.replace(/"/g, '&quot;');
+    embedHost.innerHTML = '<a data-pin-do="embedPin" data-pin-width="small" href="' + safeUrl + '"></a>';
+    loadScriptOnce('https://assets.pinterest.com/js/pinit.js', function(){ return !!window.PinUtils; }).then(function(){
+      if (linkGenCurrent(node) !== gen) return;
+      if (window.PinUtils && window.PinUtils.build) window.PinUtils.build();
+      setTimeout(function(){
+        if (embedHost.querySelector('iframe')) showLinkEmbed(node, gen);
+        else showLinkFallback(node, gen, "Can't preview this pin — it may be private, deleted, or previews are blocked in this view.");
+      }, 3500);
+    });
+  }
+
+  function updateLinkNode(node){
+    if (!node) return;
+    var urlEl = node.querySelector('.link-url');
+    var raw = urlEl.textContent.trim();
+    var thumb = node.querySelector('.link-thumb');
+    var img = node.querySelector('.link-thumb-img');
+    var icon = node.querySelector('.link-thumb-icon');
+    var embedHost = node.querySelector('.link-embed');
+    var statusEl = node.querySelector('.link-status');
+    var openBtn = node.querySelector('.link-open');
+    var platform = detectPlatform(raw);
+    thumb.dataset.platform = platform;
+    icon.textContent = PLATFORM_LABEL[platform] || '🔗';
+
+    if (raw){
+      var httpUrl = /^https?:\/\//i.test(raw) ? raw : 'https://' + raw;
+      openBtn.href = httpUrl;
+      openBtn.hidden = false;
+    } else {
+      openBtn.removeAttribute('href');
+      openBtn.hidden = true;
+    }
+
+    var gen = linkGenCurrent(node) + 1;
+    node.dataset.linkGen = String(gen);
+    clearTimeout(node._linkDebounce);
+    if (node._iframeRO){ node._iframeRO.disconnect(); node._iframeRO = null; }
+
+    thumb.hidden = false;
+    embedHost.hidden = true;
+    embedHost.innerHTML = '';
+    embedHost.style.height = '';
+    statusEl.hidden = true;
+    statusEl.textContent = '';
+
+    var yid = platform === 'youtube' ? youtubeId(raw) : null;
+    if (yid){
+      img.onerror = function(){ img.hidden = true; icon.hidden = false; };
+      img.src = 'https://img.youtube.com/vi/' + yid + '/hqdefault.jpg';
+      img.hidden = false;
+      icon.hidden = true;
+      return;
+    }
+    img.onerror = null;
+    img.removeAttribute('src');
+    img.hidden = true;
+    icon.hidden = false;
+
+    if ((platform === 'instagram' || platform === 'pinterest') && raw){
+      var embedUrl = httpUrl;
+      node._linkDebounce = setTimeout(function(){
+        if (linkGenCurrent(node) !== gen) return;
+        if (platform === 'instagram') embedInstagram(node, gen, embedUrl);
+        else embedPinterest(node, gen, embedUrl);
+      }, 500);
+    }
+  }
+
+  /* ---------- box-to-box links ---------- */
+  function linkNodes(sourceNode, targetNode){
+    var srcId = ensureNodeId(sourceNode);
+    var tgtId = ensureNodeId(targetNode);
+    var links = (sourceNode.dataset.linksTo || '').split(' ').filter(Boolean);
+    if (links.indexOf(tgtId) === -1){
+      links.push(tgtId);
+      sourceNode.dataset.linksTo = links.join(' ');
+    }
+    scheduleArrowUpdate(sourceNode.closest('.board-screen'));
+  }
+
+  function removeNodeLinks(deletedNode){
+    var id = deletedNode.dataset.nodeId;
+    if (!id) return;
+    var boardEl = deletedNode.closest('.board-screen');
+    if (!boardEl) return;
+    boardEl.querySelectorAll('.node[data-links-to]').forEach(function(n){
+      var links = n.dataset.linksTo.split(' ').filter(function(x){ return x && x !== id; });
+      if (links.length) n.dataset.linksTo = links.join(' ');
+      else n.removeAttribute('data-links-to');
+    });
+  }
+
+  function startConnection(e, sourceNode){
+    e.preventDefault(); e.stopPropagation();
+    blurActiveEditable();
+    var boardEl = sourceNode.closest('.board-screen');
+    var overlay = boardEl.querySelector('.arrows-overlay');
+    var hostRect = boardEl.getBoundingClientRect();
+    var srcRect = sourceNode.getBoundingClientRect();
+    var startX = srcRect.left + srcRect.width / 2 - hostRect.left;
+    var startY = srcRect.top - hostRect.top;
+    var tempPath = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+    tempPath.setAttribute('class', 'flow-arrow flow-arrow--draft');
+    overlay.appendChild(tempPath);
+    var lastTarget = null;
+
+    function onMove(ev){
+      hostRect = boardEl.getBoundingClientRect();
+      var px = ev.clientX - hostRect.left, py = ev.clientY - hostRect.top;
+      tempPath.setAttribute('d', 'M ' + startX + ' ' + startY + ' L ' + px + ' ' + py);
+      var under = document.elementFromPoint(ev.clientX, ev.clientY);
+      var hoverNode = under && under.closest ? under.closest('.node') : null;
+      if (hoverNode === sourceNode) hoverNode = null;
+      if (lastTarget && lastTarget !== hoverNode) lastTarget.classList.remove('node--link-target');
+      if (hoverNode) hoverNode.classList.add('node--link-target');
+      lastTarget = hoverNode;
+    }
+    function onUp(ev){
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerup', onUp);
+      tempPath.remove();
+      if (lastTarget) lastTarget.classList.remove('node--link-target');
+      var under = document.elementFromPoint(ev.clientX, ev.clientY);
+      var targetNode = under && under.closest ? under.closest('.node') : null;
+      if (targetNode && targetNode !== sourceNode) linkNodes(sourceNode, targetNode);
+    }
+    window.addEventListener('pointermove', onMove);
+    window.addEventListener('pointerup', onUp);
+  }
+
+  function fileToCompressedDataURL(file){
+    return createImageBitmap(file).then(function(bitmap){
+      var maxDim = 680;
+      var scale = Math.min(1, maxDim / Math.max(bitmap.width, bitmap.height));
+      var w = Math.max(1, Math.round(bitmap.width * scale));
+      var h = Math.max(1, Math.round(bitmap.height * scale));
+      var canvas = document.createElement('canvas');
+      canvas.width = w; canvas.height = h;
+      var ctx = canvas.getContext('2d');
+      ctx.drawImage(bitmap, 0, 0, w, h);
+      return canvas.toDataURL('image/jpeg', 0.78);
+    });
+  }
+
+  /* ---------- image paste (anywhere) + plain-text paste in editable fields ---------- */
+  document.addEventListener('paste', function(e){
+    var items = e.clipboardData && e.clipboardData.items;
+    if (items){
+      for (var i = 0; i < items.length; i++){
+        if (items[i].type && items[i].type.indexOf('image/') === 0){
+          var boardEl = document.querySelector('.board-screen:not([hidden])');
+          if (boardEl){
+            e.preventDefault();
+            var file = items[i].getAsFile();
+            fileToCompressedDataURL(file).then(function(dataUrl){
+              withSync(function(){ addImageNode(boardEl, dataUrl); });
+            });
+          }
+          return;
+        }
+      }
+    }
+    var target = e.target;
+    if (!target) return;
+    var text = (e.clipboardData || window.clipboardData).getData('text/plain');
+    if (target.classList && target.classList.contains('link-url')){
+      e.preventDefault();
+      document.execCommand('insertText', false, text);
+      updateLinkNode(target.closest('.node'));
+    } else if (target.isContentEditable){
+      e.preventDefault();
+      document.execCommand('insertText', false, text);
+    }
+  });
+
+  app.addEventListener('input', function(e){
+    var t = e.target;
+    if (t.classList && t.classList.contains('link-url')){
+      updateLinkNode(t.closest('.node'));
+    } else if (t.classList && t.classList.contains('board-title')){
+      var boardEl6 = t.closest('.board-screen');
+      var fid6 = boardEl6 && boardEl6.dataset.folderId;
+      var tileName = fid6 && folderGrid.querySelector('.folder-tile[data-folder-id="' + cssEscape(fid6) + '"] .folder-name');
+      if (tileName && tileName.textContent !== t.textContent) tileName.textContent = t.textContent;
+    } else if (t.classList && t.classList.contains('folder-name')){
+      var tile6 = t.closest('.folder-tile');
+      var fid7 = tile6 && tile6.dataset.folderId;
+      var boardTitle = fid7 && boardsRoot.querySelector('.board-screen[data-folder-id="' + cssEscape(fid7) + '"] .board-title');
+      if (boardTitle && boardTitle.textContent !== t.textContent) boardTitle.textContent = t.textContent;
+    }
+  });
+
+  /* node-body is a single rich-text field per box (like a document paragraph) —
+     Enter/Backspace are native contenteditable behavior; only single-line
+     fields (titles, captions, links) get the custom Enter-to-blur override below */
+  document.addEventListener('keydown', function(e){
+    var t = e.target;
+    if (!t || !t.classList) return;
+
+    if (e.key !== 'Enter' || !t.isContentEditable) return;
+    if (t.classList.contains('node-caption')){
+      e.preventDefault();
+      document.execCommand('insertText', false, '\n');
+    } else if (t.classList.contains('board-title') || t.classList.contains('folder-name') || t.classList.contains('node-title') || t.classList.contains('link-url')){
+      e.preventDefault();
+      t.blur();
+    }
+  });
+  document.addEventListener('blur', function(e){
+    var t = e.target;
+    if (t && t.isContentEditable && t.textContent.trim() === '' && t.innerHTML !== ''){
+      t.innerHTML = '';
+    }
+  }, true);
+
+  /* ---------- left-rail formatting bar ---------- */
+  /* node-body is one free-form rich-text field per box, like a document:
+     formatting applies to the current text selection via execCommand,
+     exactly like Bold/Italic/Lists in Word or Google Docs — not to a
+     whole "line" as a unit. */
+  document.addEventListener('focusin', function(e){
+    var boardEl = e.target.closest ? e.target.closest('.board-screen') : null;
+    var isBody = e.target.classList && e.target.classList.contains('node-body');
+    var isTitle = e.target.classList && e.target.classList.contains('node-title');
+    activeNodeBody = isBody ? e.target : null;
+    activeSizeTarget = (isBody || isTitle) ? e.target : null;
+    if (boardEl) updateFormatBarState(boardEl);
+  });
+
+  /* clicking blank canvas, or grabbing a box's bar/edge/resize handle, calls
+     preventDefault() on pointerdown to avoid text-selection during the drag —
+     which also suppresses the browser's normal blur-on-click-away, so the
+     box stayed "focused" and the toolbar kept showing its formatting as
+     active. focusout here, plus an explicit .blur() in those handlers below,
+     clears it. */
+  document.addEventListener('focusout', function(e){
+    if (e.target === activeNodeBody || e.target === activeSizeTarget){
+      var boardEl = e.target.closest('.board-screen');
+      if (e.target === activeNodeBody) activeNodeBody = null;
+      if (e.target === activeSizeTarget) activeSizeTarget = null;
+      if (boardEl) updateFormatBarState(boardEl);
+    }
+  });
+
+  document.addEventListener('selectionchange', function(){
+    if (!activeSizeTarget || !activeSizeTarget.isConnected) return;
+    if (document.activeElement !== activeSizeTarget) return;
+    updateFormatBarState(activeSizeTarget.closest('.board-screen'));
+  });
+
+  function applyFormat(kind){
+    if (!activeNodeBody || !activeNodeBody.isConnected) return;
+    activeNodeBody.focus();
+    if (kind === 'bold' || kind === 'italic'){
+      document.execCommand(kind);
+    } else if (kind === 'h'){
+      var isH = (document.queryCommandValue('formatBlock') || '').toLowerCase() === 'h3';
+      document.execCommand('formatBlock', false, isH ? 'DIV' : 'H3');
+    } else if (kind === 'center'){
+      var isCenter = document.queryCommandState('justifyCenter');
+      document.execCommand(isCenter ? 'justifyLeft' : 'justifyCenter');
+    } else if (kind === 'bullet'){
+      document.execCommand('insertUnorderedList');
+    } else if (kind === 'number'){
+      document.execCommand('insertOrderedList');
+    }
+    var boardEl = activeNodeBody.closest('.board-screen');
+    updateFormatBarState(boardEl);
+    scheduleArrowUpdate(boardEl);
+  }
+
+  function updateFormatBarState(boardEl){
+    if (!boardEl) return;
+    var has = !!activeNodeBody;
+    boardEl.querySelectorAll('.fmt-btn').forEach(function(btn){
+      var kind = btn.dataset.fmt;
+      var on = false;
+      if (has){
+        if (kind === 'bold') on = document.queryCommandState('bold');
+        else if (kind === 'italic') on = document.queryCommandState('italic');
+        else if (kind === 'center') on = document.queryCommandState('justifyCenter');
+        else if (kind === 'bullet') on = document.queryCommandState('insertUnorderedList');
+        else if (kind === 'number') on = document.queryCommandState('insertOrderedList');
+        else if (kind === 'h') on = (document.queryCommandValue('formatBlock') || '').toLowerCase() === 'h3';
+      }
+      btn.classList.toggle('is-active', on);
+      btn.disabled = !has;
+    });
+    var hasSize = !!activeSizeTarget;
+    var fsInc = boardEl.querySelector('.fontsize-inc');
+    var fsDec = boardEl.querySelector('.fontsize-dec');
+    var fsLevel = boardEl.querySelector('.fontsize-level');
+    if (fsInc) fsInc.disabled = !hasSize;
+    if (fsDec) fsDec.disabled = !hasSize;
+    if (fsLevel) fsLevel.textContent = currentFontSizePx() + 'px';
+  }
+
+  /* ---------- text size, in actual pixels — applies to the current selection
+     (like Word), or to the whole current paragraph/list item (or the whole
+     title, for a box's title field) when nothing is selected. Works for both
+     a box's rich-text body and its title. ---------- */
+  function currentFontSizePx(){
+    if (!activeSizeTarget) return 13;
+    var sel = window.getSelection();
+    var node = sel && sel.anchorNode;
+    if (node && activeSizeTarget.contains(node)){
+      var el = node.nodeType === 3 ? node.parentElement : node;
+      if (el) return Math.round(parseFloat(getComputedStyle(el).fontSize)) || 13;
+    }
+    return Math.round(parseFloat(getComputedStyle(activeSizeTarget).fontSize)) || 13;
+  }
+
+  function resizableBlock(){
+    var sel = window.getSelection();
+    var node = sel && sel.anchorNode;
+    if (!node || !activeSizeTarget || !activeSizeTarget.contains(node)) return null;
+    var el = node.nodeType === 3 ? node.parentElement : node;
+    while (el && el !== activeSizeTarget){
+      if (el.parentElement === activeSizeTarget || el.tagName === 'LI') return el;
+      el = el.parentElement;
+    }
+    return null;
+  }
+
+  function nudgeFontSize(deltaPx){
+    if (!activeSizeTarget || !activeSizeTarget.isConnected) return;
+    var sel = window.getSelection();
+    var hasSelection = sel && sel.rangeCount && !sel.getRangeAt(0).collapsed && activeSizeTarget.contains(sel.anchorNode);
+    var cur = currentFontSizePx();
+    var next = Math.max(8, Math.min(72, cur + deltaPx));
+    if (hasSelection){
+      var range = sel.getRangeAt(0);
+      var span = document.createElement('span');
+      span.style.fontSize = next + 'px';
+      try { range.surroundContents(span); }
+      catch(err){ var frag = range.extractContents(); span.appendChild(frag); range.insertNode(span); }
+      var newRange = document.createRange();
+      newRange.selectNodeContents(span);
+      sel.removeAllRanges();
+      sel.addRange(newRange);
+    } else {
+      var block = resizableBlock();
+      if (block) block.style.fontSize = next + 'px';
+      else activeSizeTarget.style.fontSize = next + 'px';
+    }
+    var boardEl = activeSizeTarget.closest('.board-screen');
+    updateFormatBarState(boardEl);
+    scheduleArrowUpdate(boardEl);
+  }
+
+  /* ---------- dragging nodes, resizing, panning canvas ---------- */
+  app.addEventListener('pointerdown', function(e){
+    var connector = e.target.closest('.node-connector');
+    if (connector){
+      startConnection(e, connector.closest('.node'));
+      return;
+    }
+    var handle = e.target.closest('.node-bar');
+    if (handle && !e.target.closest('.node-delete') && !e.target.closest('.node-title')){
+      startNodeDrag(e, handle.closest('.node'));
+      return;
+    }
+    var edge = e.target.closest('.node-edge');
+    if (edge){
+      startNodeDrag(e, edge.closest('.node'));
+      return;
+    }
+    var resize = e.target.closest('.node-resize');
+    if (resize){
+      startNodeResize(e, resize.closest('.node'));
+      return;
+    }
+    var viewport = e.target.closest('.canvas-viewport');
+    if (viewport && (e.target === viewport || e.target.classList.contains('canvas-stage') || e.target.classList.contains('canvas-surface'))){
+      startCanvasPan(e, viewport);
+    }
+  });
+
+  function startNodeDrag(e, node){
+    e.preventDefault();
+    blurActiveEditable();
+    var boardEl = node.closest('.board-screen');
+    var stage = node.closest('.canvas-stage');
+    var scale = parseFloat(stage.dataset.scale || '1');
+    node.style.zIndex = ++zCounter;
+    var startX = e.clientX, startY = e.clientY;
+    var baseLeft = parseFloat(node.style.left) || 0;
+    var baseTop = parseFloat(node.style.top) || 0;
+    function onMove(ev){
+      var dx = (ev.clientX - startX) / scale;
+      var dy = (ev.clientY - startY) / scale;
+      node.style.left = (baseLeft + dx) + 'px';
+      node.style.top = (baseTop + dy) + 'px';
+      scheduleArrowUpdate(boardEl);
+    }
+    function onUp(){
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerup', onUp);
+    }
+    window.addEventListener('pointermove', onMove);
+    window.addEventListener('pointerup', onUp);
+  }
+
+  function startNodeResize(e, node){
+    e.preventDefault(); e.stopPropagation();
+    blurActiveEditable();
+    var boardEl = node.closest('.board-screen');
+    var stage = node.closest('.canvas-stage');
+    var scale = parseFloat(stage.dataset.scale || '1');
+    var startX = e.clientX, startY = e.clientY;
+    var rect = node.getBoundingClientRect();
+    var baseWidth = parseFloat(node.style.width) || (rect.width / scale);
+    var baseHeight = parseFloat(node.style.height) || (rect.height / scale);
+    /* link boxes always keep their preview's true shape (the platform badge
+       is a fixed 16:10 via CSS; a live embed is fixed via fitEmbedIframe) —
+       so only width is user-driven there, height follows automatically
+       instead of being stretched independently. */
+    var isLink = node.classList.contains('node-link');
+    function onMove(ev){
+      var dx = (ev.clientX - startX) / scale;
+      var w = Math.max(150, Math.min(760, baseWidth + dx));
+      node.style.width = w + 'px';
+      if (isLink){
+        node.style.height = '';
+        fitEmbedIframe(node);
+      } else {
+        var dy = (ev.clientY - startY) / scale;
+        var h = Math.max(70, Math.min(900, baseHeight + dy));
+        node.style.height = h + 'px';
+      }
+      scheduleArrowUpdate(boardEl);
+    }
+    function onUp(){
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerup', onUp);
+    }
+    window.addEventListener('pointermove', onMove);
+    window.addEventListener('pointerup', onUp);
+  }
+
+  function applyStageTransform(stage){
+    var x = parseFloat(stage.dataset.panX || '0');
+    var y = parseFloat(stage.dataset.panY || '0');
+    var s = parseFloat(stage.dataset.scale || '1');
+    stage.style.transform = 'translate(' + x + 'px,' + y + 'px) scale(' + s + ')';
+    var boardEl = stage.closest('.board-screen');
+    var zoomLabel = boardEl && boardEl.querySelector('.zoom-level');
+    if (zoomLabel) zoomLabel.textContent = Math.round(s * 100) + '%';
+  }
+
+  function startCanvasPan(e, viewport){
+    e.preventDefault();
+    blurActiveEditable();
+    var stage = viewport.querySelector('.canvas-stage');
+    var boardEl = viewport.closest('.board-screen');
+    viewport.classList.add('panning');
+    var startX = e.clientX, startY = e.clientY;
+    var baseX = parseFloat(stage.dataset.panX || '0');
+    var baseY = parseFloat(stage.dataset.panY || '0');
+    function onMove(ev){
+      stage.dataset.panX = baseX + (ev.clientX - startX);
+      stage.dataset.panY = baseY + (ev.clientY - startY);
+      applyStageTransform(stage);
+      scheduleArrowUpdate(boardEl);
+    }
+    function onUp(){
+      viewport.classList.remove('panning');
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerup', onUp);
+    }
+    window.addEventListener('pointermove', onMove);
+    window.addEventListener('pointerup', onUp);
+  }
+
+  function nudgeZoom(boardEl, delta){
+    var stage = boardEl.querySelector('.canvas-stage');
+    var s = parseFloat(stage.dataset.scale || '1');
+    s = Math.max(0.35, Math.min(2.5, s + delta));
+    stage.dataset.scale = s;
+    applyStageTransform(stage);
+    scheduleArrowUpdate(boardEl);
+  }
+
+  app.addEventListener('wheel', function(e){
+    var viewport = e.target.closest('.canvas-viewport');
+    if (!viewport) return;
+    e.preventDefault();
+    var boardEl = viewport.closest('.board-screen');
+    nudgeZoom(boardEl, e.deltaY < 0 ? 0.08 : -0.08);
+  }, { passive: false });
+
+  /* ---------- fluid arrows from the title to every box ---------- */
+  var arrowRAF = null;
+  function scheduleArrowUpdate(boardEl){
+    boardEl = boardEl || document.querySelector('.board-screen:not([hidden])');
+    if (!boardEl || boardEl.hidden) return;
+    if (arrowRAF) cancelAnimationFrame(arrowRAF);
+    arrowRAF = requestAnimationFrame(function(){ updateArrows(boardEl); arrowRAF = null; });
+  }
+
+  function curvePath(sx, sy, ex, ey){
+    var reach = Math.max(60, (ex - sx) * 0.55);
+    var c1x = sx + reach, c1y = sy;
+    var c2x = ex - reach, c2y = ey;
+    return 'M ' + sx + ' ' + sy + ' C ' + c1x + ' ' + c1y + ' ' + c2x + ' ' + c2y + ' ' + ex + ' ' + ey;
+  }
+
+  function updateArrows(boardEl){
+    if (!boardEl || boardEl.hidden) return;
+    var overlay = boardEl.querySelector('.arrows-overlay');
+    var hitOverlay = boardEl.querySelector('.arrows-hit-overlay');
+    var title = boardEl.querySelector('.board-title');
+    var nodes = boardEl.querySelectorAll('.node');
+    var hostRect = boardEl.getBoundingClientRect();
+    if (hostRect.width === 0) return;
+    var boardId = boardEl.dataset.folderId || 'x';
+    var markerId = 'arrow-tip-' + cssEscape(boardId);
+    var markerIdDanger = 'arrow-tip-danger-' + cssEscape(boardId);
+
+    [overlay, hitOverlay].forEach(function(svgEl){
+      svgEl.setAttribute('width', hostRect.width);
+      svgEl.setAttribute('height', hostRect.height);
+      svgEl.setAttribute('viewBox', '0 0 ' + hostRect.width + ' ' + hostRect.height);
+    });
+
+    var tRect = title.getBoundingClientRect();
+    var startX = tRect.right - hostRect.left + 14;
+    var startY = tRect.top + tRect.height / 2 - hostRect.top;
+
+    var svg = '<defs>' +
+      '<marker id="' + markerId + '" markerWidth="9" markerHeight="9" refX="6.5" refY="4.5" orient="auto"><path d="M0.5 0.5 L8.5 4.5 L0.5 8.5 Z" fill="var(--arrow)"/></marker>' +
+      '<marker id="' + markerIdDanger + '" markerWidth="9" markerHeight="9" refX="6.5" refY="4.5" orient="auto"><path d="M0.5 0.5 L8.5 4.5 L0.5 8.5 Z" fill="var(--danger)"/></marker>' +
+    '</defs>';
+    var hitSvg = '';
+
+    var nodeById = {};
+    var linkedTargetIds = {};
+    nodes.forEach(function(node){
+      if (node.dataset.nodeId) nodeById[node.dataset.nodeId] = node;
+      if (node.dataset.linksTo){
+        node.dataset.linksTo.split(' ').filter(Boolean).forEach(function(tid){ linkedTargetIds[tid] = true; });
+      }
+    });
+
+    nodes.forEach(function(node){
+      if (node.dataset.nodeId && linkedTargetIds[node.dataset.nodeId]) return;
+      var r = node.getBoundingClientRect();
+      var endX = r.left - hostRect.left - 8;
+      var endY = r.top + r.height / 2 - hostRect.top;
+      svg += '<path class="flow-arrow" d="' + curvePath(startX, startY, endX, endY) + '" marker-end="url(#' + markerId + ')"/>';
+    });
+
+    var linkArrows = [];
+    nodes.forEach(function(node){
+      if (!node.dataset.linksTo) return;
+      var fromRect = node.getBoundingClientRect();
+      node.dataset.linksTo.split(' ').filter(Boolean).forEach(function(tid){
+        var target = nodeById[tid];
+        if (!target) return;
+        var toRect = target.getBoundingClientRect();
+        var sx = fromRect.right - hostRect.left, sy = fromRect.top + fromRect.height / 2 - hostRect.top;
+        var ex = toRect.left - hostRect.left - 8, ey = toRect.top + toRect.height / 2 - hostRect.top;
+        var fromId = node.dataset.nodeId;
+        var linkPath = curvePath(sx, sy, ex, ey);
+        svg += '<path class="flow-arrow flow-arrow--link" d="' + linkPath + '" marker-end="url(#' + markerId + ')"/>';
+        hitSvg += '<path class="flow-arrow--link-hit" data-from="' + fromId + '" data-to="' + tid + '" d="' + linkPath + '"/>';
+        linkArrows.push({ from: fromId, to: tid });
+      });
+    });
+
+    overlay.innerHTML = svg;
+    hitOverlay.innerHTML = hitSvg;
+
+    var visiblePaths = overlay.querySelectorAll('.flow-arrow--link');
+    hitOverlay.querySelectorAll('.flow-arrow--link-hit').forEach(function(path, i){
+      var visiblePath = visiblePaths[i];
+      path.addEventListener('mouseenter', function(ev){
+        if (visiblePath){
+          visiblePath.setAttribute('marker-end', 'url(#' + markerIdDanger + ')');
+          visiblePath.classList.add('is-danger');
+        }
+        showArrowTip(ev.clientX, ev.clientY);
+      });
+      path.addEventListener('mousemove', function(ev){ showArrowTip(ev.clientX, ev.clientY); });
+      path.addEventListener('mouseleave', function(){
+        if (visiblePath){
+          visiblePath.setAttribute('marker-end', 'url(#' + markerId + ')');
+          visiblePath.classList.remove('is-danger');
+        }
+        hideArrowTip();
+      });
+      path.addEventListener('click', function(){
+        var srcNode = nodeById[linkArrows[i].from];
+        if (!srcNode) return;
+        var prevLinksTo = srcNode.dataset.linksTo;
+        var links = (srcNode.dataset.linksTo || '').split(' ').filter(function(x){ return x && x !== linkArrows[i].to; });
+        if (links.length) srcNode.dataset.linksTo = links.join(' ');
+        else srcNode.removeAttribute('data-links-to');
+        hideArrowTip();
+        scheduleArrowUpdate(boardEl);
+        pushUndo(function(){
+          srcNode.dataset.linksTo = prevLinksTo;
+          scheduleArrowUpdate(boardEl);
+        });
+      });
+    });
+  }
+
+  var nodeResizeObserver = new ResizeObserver(function(){ scheduleArrowUpdate(); });
+  function observeNode(node){ nodeResizeObserver.observe(node); }
+  document.querySelectorAll('.node').forEach(observeNode);
+
+  window.addEventListener('resize', function(){ scheduleArrowUpdate(); });
+
+  /* ---------- boot ---------- */
+  document.querySelectorAll('.canvas-stage').forEach(applyStageTransform);
+  var openBoard = document.querySelector('.board-screen:not([hidden])');
+  if (openBoard) requestAnimationFrame(function(){ updateArrows(openBoard); });
+})();
+</script>

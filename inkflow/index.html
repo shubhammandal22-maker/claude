@@ -52,13 +52,6 @@
 
   #app{ position:relative; height:100vh; width:100vw; overflow:hidden; }
 
-  .brand-mark{
-    position:fixed; top:14px; left:18px; z-index:50;
-    display:flex; align-items:center; gap:8px;
-    background:none; border:none; cursor:pointer; padding:4px 6px;
-    color:var(--ink); font-family:'Bricolage Grotesque', sans-serif; font-weight:700; font-size:1rem;
-  }
-  .brand-mark svg{ width:20px; height:20px; color:var(--accent); }
 
   .theme-toggle{
     position:fixed; top:14px; right:18px; z-index:50;
@@ -69,16 +62,18 @@
   .theme-toggle:hover{ color:var(--accent); border-color:var(--accent); }
   .theme-toggle svg{ width:17px; height:17px; }
 
-  .undo-btn{
-    position:fixed; top:14px; right:62px; z-index:50;
+  .undo-btn, .redo-btn{
+    position:fixed; top:14px; z-index:50;
     width:36px; height:36px; border-radius:50%;
     border:1.5px solid var(--border); background:var(--surface);
     color:var(--ink-soft); cursor:pointer; display:flex; align-items:center; justify-content:center;
   }
-  .undo-btn:hover{ color:var(--accent); border-color:var(--accent); }
-  .undo-btn:disabled{ opacity:0.35; cursor:not-allowed; }
-  .undo-btn:disabled:hover{ color:var(--ink-soft); border-color:var(--border); }
-  .undo-btn svg{ width:17px; height:17px; }
+  .undo-btn{ right:106px; }
+  .redo-btn{ right:62px; }
+  .undo-btn:hover, .redo-btn:hover{ color:var(--accent); border-color:var(--accent); }
+  .undo-btn:disabled, .redo-btn:disabled{ opacity:0.35; cursor:not-allowed; }
+  .undo-btn:disabled:hover, .redo-btn:disabled:hover{ color:var(--ink-soft); border-color:var(--border); }
+  .undo-btn svg, .redo-btn svg{ width:17px; height:17px; }
 
   /* ---------- Home screen ---------- */
   .screen{ position:absolute; inset:0; }
@@ -135,7 +130,7 @@
     border-right:1.5px solid var(--border);
   }
   .back-btn{
-    position:absolute; top:14px; left:170px; z-index:20;
+    position:absolute; top:14px; left:18px; z-index:20;
     display:flex; align-items:center; gap:6px;
     border:none; background:none; color:var(--ink-soft); cursor:pointer;
     font-family:'IBM Plex Mono', monospace; font-size:0.78rem; letter-spacing:0.03em; text-transform:uppercase;
@@ -358,12 +353,11 @@
 </style>
 
 <div id="app">
-  <button class="brand-mark" id="brand-home-btn" type="button" aria-label="Go to folders">
-    <svg viewBox="0 0 24 20" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M1 3.5C1 2.12 2.12 1 3.5 1H9l2 2h9c1.38 0 2.5 1.12 2.5 2.5v11C22.5 17.88 21.38 19 20 19H3.5C2.12 19 1 17.88 1 16.5v-13Z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg>
-    Inkflow
-  </button>
   <button class="undo-btn" id="undo-btn" type="button" aria-label="Undo" title="Undo (Ctrl+Z)" disabled>
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 10h11a5 5 0 0 1 0 10h-3"/><path d="M3 10l5-5M3 10l5 5"/></svg>
+  </button>
+  <button class="redo-btn" id="redo-btn" type="button" aria-label="Redo" title="Redo (Ctrl+Y)" disabled>
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10H10a5 5 0 0 0 0 10h3"/><path d="M21 10l-5-5M21 10l-5 5"/></svg>
   </button>
   <button class="theme-toggle" id="theme-toggle" type="button" aria-label="Toggle theme">
     <svg id="theme-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4.2"/><path d="M12 2.5v2.6M12 18.9v2.6M4.6 4.6l1.85 1.85M17.55 17.55l1.85 1.85M2.5 12h2.6M18.9 12h2.6M4.6 19.4l1.85-1.85M17.55 6.45l1.85-1.85"/></svg>
@@ -689,29 +683,54 @@
     if (el && el.isContentEditable && typeof el.blur === 'function') el.blur();
   }
 
-  /* ---------- undo (deletions only: boxes, links/arrows, folders) ---------- */
+  /* ---------- undo / redo ----------
+     Every mutating action (add/delete/move/resize a box, link/unlink boxes,
+     add/delete a folder, or finish editing a text field) pushes one
+     {undo, redo} pair. undo() reverses the most recent one and moves it to
+     the redo stack; redo() re-applies it and moves it back. Pushing any NEW
+     action clears the redo stack, same as every other undo/redo system —
+     once you do something new, the old "future" is gone. */
   var undoStack = [];
-  var UNDO_LIMIT = 50;
+  var redoStack = [];
+  var HISTORY_LIMIT = 100;
   var undoBtn = document.getElementById('undo-btn');
-  function updateUndoBtn(){ undoBtn.disabled = undoStack.length === 0; }
-  function pushUndo(action){
+  var redoBtn = document.getElementById('redo-btn');
+  function updateHistoryBtns(){
+    undoBtn.disabled = undoStack.length === 0;
+    redoBtn.disabled = redoStack.length === 0;
+  }
+  function pushAction(action){
     undoStack.push(action);
-    if (undoStack.length > UNDO_LIMIT) undoStack.shift();
-    updateUndoBtn();
+    if (undoStack.length > HISTORY_LIMIT) undoStack.shift();
+    redoStack.length = 0;
+    updateHistoryBtns();
   }
   function undo(){
     var action = undoStack.pop();
     if (!action) return;
-    action();
-    updateUndoBtn();
+    action.undo();
+    redoStack.push(action);
+    updateHistoryBtns();
+  }
+  function redo(){
+    var action = redoStack.pop();
+    if (!action) return;
+    action.redo();
+    undoStack.push(action);
+    updateHistoryBtns();
   }
   undoBtn.addEventListener('click', undo);
+  redoBtn.addEventListener('click', redo);
   document.addEventListener('keydown', function(e){
-    if (!(e.ctrlKey || e.metaKey) || e.shiftKey || e.key.toLowerCase() !== 'z') return;
+    if (!(e.ctrlKey || e.metaKey)) return;
+    var key = e.key.toLowerCase();
+    var isRedo = (key === 'z' && e.shiftKey) || key === 'y';
+    var isUndo = key === 'z' && !e.shiftKey;
+    if (!isRedo && !isUndo) return;
     var ae = document.activeElement;
     if (ae && ae.isContentEditable) return; // let native text-undo run inside editable fields
     e.preventDefault();
-    undo();
+    if (isRedo) redo(); else undo();
   });
 
   /* ---------- hover tooltip for deletable link arrows ---------- */
@@ -722,8 +741,6 @@
     arrowTip.hidden = false;
   }
   function hideArrowTip(){ arrowTip.hidden = true; }
-
-  document.getElementById('brand-home-btn').addEventListener('click', goHome);
 
   /* ---------- folder creation / deletion ---------- */
   document.getElementById('new-folder-btn').addEventListener('click', function(){
@@ -740,6 +757,14 @@
 
     var newTile = folderGrid.querySelector('.folder-tile[data-folder-id="' + cssEscape(id) + '"] .folder-name');
     if (newTile) newTile.focus();
+
+    pushAction({
+      undo: function(){ tile.remove(); board.remove(); },
+      redo: function(){
+        folderGrid.insertBefore(tile, document.getElementById('new-folder-btn'));
+        boardsRoot.appendChild(board);
+      }
+    });
   });
 
   /* ---------- delegated click handling ---------- */
@@ -758,9 +783,15 @@
         var boardParent = board && board.parentNode, boardNext = board && board.nextSibling;
         tile.remove();
         if (board) board.remove();
-        pushUndo(function(){
-          tileParent.insertBefore(tile, tileNext);
-          if (board) boardParent.insertBefore(board, boardNext);
+        pushAction({
+          undo: function(){
+            tileParent.insertBefore(tile, tileNext);
+            if (board) boardParent.insertBefore(board, boardNext);
+          },
+          redo: function(){
+            tile.remove();
+            if (board) board.remove();
+          }
         });
       });
       return;
@@ -813,11 +844,20 @@
       removeNodeLinks(node);
       node.remove();
       scheduleArrowUpdate(boardEl3);
-      pushUndo(function(){
-        nodeParent.insertBefore(node, nodeNext);
-        observeNode(node);
-        linkSnapshots.forEach(function(s){ s.node.dataset.linksTo = s.prev; });
-        scheduleArrowUpdate(boardEl3);
+      pushAction({
+        undo: function(){
+          nodeParent.insertBefore(node, nodeNext);
+          observeNode(node);
+          linkSnapshots.forEach(function(s){ s.node.dataset.linksTo = s.prev; });
+          scheduleArrowUpdate(boardEl3);
+        },
+        redo: function(){
+          if (node === activeNodeBody) activeNodeBody = null;
+          if (node === activeSizeTarget) activeSizeTarget = null;
+          removeNodeLinks(node);
+          node.remove();
+          scheduleArrowUpdate(boardEl3);
+        }
       });
       return;
     }
@@ -873,6 +913,20 @@
     scheduleArrowUpdate(boardEl);
     var body = appended.querySelector('.node-body');
     if (body) body.focus();
+    pushAction({
+      undo: function(){
+        if (appended === activeNodeBody) activeNodeBody = null;
+        if (appended === activeSizeTarget) activeSizeTarget = null;
+        removeNodeLinks(appended);
+        appended.remove();
+        scheduleArrowUpdate(boardEl);
+      },
+      redo: function(){
+        surface.appendChild(appended);
+        observeNode(appended);
+        scheduleArrowUpdate(boardEl);
+      }
+    });
   }
 
   function addImageNode(boardEl, dataUrl){
@@ -888,6 +942,20 @@
     var appended = surface.lastElementChild;
     observeNode(appended);
     scheduleArrowUpdate(boardEl);
+    pushAction({
+      undo: function(){
+        if (appended === activeNodeBody) activeNodeBody = null;
+        if (appended === activeSizeTarget) activeSizeTarget = null;
+        removeNodeLinks(appended);
+        appended.remove();
+        scheduleArrowUpdate(boardEl);
+      },
+      redo: function(){
+        surface.appendChild(appended);
+        observeNode(appended);
+        scheduleArrowUpdate(boardEl);
+      }
+    });
   }
 
   function ensureNodeId(node){
@@ -910,6 +978,20 @@
     scheduleArrowUpdate(boardEl);
     var urlEl = appended.querySelector('.link-url');
     if (urlEl) urlEl.focus();
+    pushAction({
+      undo: function(){
+        if (appended === activeNodeBody) activeNodeBody = null;
+        if (appended === activeSizeTarget) activeSizeTarget = null;
+        removeNodeLinks(appended);
+        appended.remove();
+        scheduleArrowUpdate(boardEl);
+      },
+      redo: function(){
+        surface.appendChild(appended);
+        observeNode(appended);
+        scheduleArrowUpdate(boardEl);
+      }
+    });
   }
 
   /* ---------- link boxes: platform detection + thumbnail ---------- */
@@ -1099,12 +1181,27 @@
   function linkNodes(sourceNode, targetNode){
     var srcId = ensureNodeId(sourceNode);
     var tgtId = ensureNodeId(targetNode);
-    var links = (sourceNode.dataset.linksTo || '').split(' ').filter(Boolean);
+    var prevLinksTo = sourceNode.dataset.linksTo;
+    var links = (prevLinksTo || '').split(' ').filter(Boolean);
     if (links.indexOf(tgtId) === -1){
       links.push(tgtId);
       sourceNode.dataset.linksTo = links.join(' ');
+      var boardEl = sourceNode.closest('.board-screen');
+      scheduleArrowUpdate(boardEl);
+      pushAction({
+        undo: function(){
+          if (prevLinksTo) sourceNode.dataset.linksTo = prevLinksTo;
+          else sourceNode.removeAttribute('data-links-to');
+          scheduleArrowUpdate(boardEl);
+        },
+        redo: function(){
+          var l = (sourceNode.dataset.linksTo || '').split(' ').filter(Boolean);
+          if (l.indexOf(tgtId) === -1) l.push(tgtId);
+          sourceNode.dataset.linksTo = l.join(' ');
+          scheduleArrowUpdate(boardEl);
+        }
+      });
     }
-    scheduleArrowUpdate(sourceNode.closest('.board-screen'));
   }
 
   function removeNodeLinks(deletedNode){
@@ -1202,21 +1299,23 @@
     }
   });
 
-  app.addEventListener('input', function(e){
-    var t = e.target;
-    if (t.classList && t.classList.contains('link-url')){
+  function syncMirroredField(t){
+    if (t.classList.contains('link-url')){
       updateLinkNode(t.closest('.node'));
-    } else if (t.classList && t.classList.contains('board-title')){
+    } else if (t.classList.contains('board-title')){
       var boardEl6 = t.closest('.board-screen');
       var fid6 = boardEl6 && boardEl6.dataset.folderId;
       var tileName = fid6 && folderGrid.querySelector('.folder-tile[data-folder-id="' + cssEscape(fid6) + '"] .folder-name');
       if (tileName && tileName.textContent !== t.textContent) tileName.textContent = t.textContent;
-    } else if (t.classList && t.classList.contains('folder-name')){
+    } else if (t.classList.contains('folder-name')){
       var tile6 = t.closest('.folder-tile');
       var fid7 = tile6 && tile6.dataset.folderId;
       var boardTitle = fid7 && boardsRoot.querySelector('.board-screen[data-folder-id="' + cssEscape(fid7) + '"] .board-title');
       if (boardTitle && boardTitle.textContent !== t.textContent) boardTitle.textContent = t.textContent;
     }
+  }
+  app.addEventListener('input', function(e){
+    if (e.target.classList) syncMirroredField(e.target);
   });
 
   /* node-body is a single rich-text field per box (like a document paragraph) —
@@ -1254,6 +1353,46 @@
     activeNodeBody = isBody ? e.target : null;
     activeSizeTarget = (isBody || isTitle) ? e.target : null;
     if (boardEl) updateFormatBarState(boardEl);
+  });
+
+  /* ---------- undo for text edits ----------
+     Typing is continuous, so each keystroke isn't its own undo step — that
+     would be unusable. Instead, the content is snapshotted when a field
+     gains focus and compared against what it holds when it loses focus;
+     if it changed, that whole editing session becomes one undo step —
+     the same grouping most text editors use. node-body is the one rich
+     field (bold/italic/lists/headings/font-size all live in its innerHTML),
+     everything else here is plain text. */
+  var editSnapshots = new WeakMap();
+  function isRichField(el){ return el.classList.contains('node-body'); }
+  function textFieldValue(el){ return isRichField(el) ? el.innerHTML : el.textContent; }
+  function setTextFieldValue(el, val){ if (isRichField(el)) el.innerHTML = val; else el.textContent = val; }
+
+  document.addEventListener('focusin', function(e){
+    var t = e.target;
+    if (t.isContentEditable) editSnapshots.set(t, textFieldValue(t));
+  });
+  document.addEventListener('focusout', function(e){
+    var t = e.target;
+    if (!t.isContentEditable) return;
+    var before = editSnapshots.get(t);
+    editSnapshots.delete(t);
+    if (before === undefined) return;
+    var after = textFieldValue(t);
+    if (before === after) return;
+    var boardEl = t.closest('.board-screen');
+    pushAction({
+      undo: function(){
+        setTextFieldValue(t, before);
+        syncMirroredField(t);
+        if (boardEl) scheduleArrowUpdate(boardEl);
+      },
+      redo: function(){
+        setTextFieldValue(t, after);
+        syncMirroredField(t);
+        if (boardEl) scheduleArrowUpdate(boardEl);
+      }
+    });
   });
 
   /* clicking blank canvas, or grabbing a box's bar/edge/resize handle, calls
@@ -1425,6 +1564,13 @@
     function onUp(){
       window.removeEventListener('pointermove', onMove);
       window.removeEventListener('pointerup', onUp);
+      var fromLeft = baseLeft + 'px', fromTop = baseTop + 'px';
+      var toLeft = node.style.left, toTop = node.style.top;
+      if (fromLeft === toLeft && fromTop === toTop) return;
+      pushAction({
+        undo: function(){ node.style.left = fromLeft; node.style.top = fromTop; scheduleArrowUpdate(boardEl); },
+        redo: function(){ node.style.left = toLeft; node.style.top = toTop; scheduleArrowUpdate(boardEl); }
+      });
     }
     window.addEventListener('pointermove', onMove);
     window.addEventListener('pointerup', onUp);
@@ -1440,6 +1586,7 @@
     var rect = node.getBoundingClientRect();
     var baseWidth = parseFloat(node.style.width) || (rect.width / scale);
     var baseHeight = parseFloat(node.style.height) || (rect.height / scale);
+    var fromWidth = node.style.width, fromHeight = node.style.height;
     /* link boxes always keep their preview's true shape (the platform badge
        is a fixed 16:10 via CSS; a live embed is fixed via fitEmbedIframe) —
        so only width is user-driven there, height follows automatically
@@ -1462,6 +1609,20 @@
     function onUp(){
       window.removeEventListener('pointermove', onMove);
       window.removeEventListener('pointerup', onUp);
+      var toWidth = node.style.width, toHeight = node.style.height;
+      if (fromWidth === toWidth && fromHeight === toHeight) return;
+      pushAction({
+        undo: function(){
+          node.style.width = fromWidth; node.style.height = fromHeight;
+          if (isLink) fitEmbedIframe(node);
+          scheduleArrowUpdate(boardEl);
+        },
+        redo: function(){
+          node.style.width = toWidth; node.style.height = toHeight;
+          if (isLink) fitEmbedIframe(node);
+          scheduleArrowUpdate(boardEl);
+        }
+      });
     }
     window.addEventListener('pointermove', onMove);
     window.addEventListener('pointerup', onUp);
@@ -1621,15 +1782,25 @@
       path.addEventListener('click', function(){
         var srcNode = nodeById[linkArrows[i].from];
         if (!srcNode) return;
+        var tid = linkArrows[i].to;
         var prevLinksTo = srcNode.dataset.linksTo;
-        var links = (srcNode.dataset.linksTo || '').split(' ').filter(function(x){ return x && x !== linkArrows[i].to; });
+        var links = (prevLinksTo || '').split(' ').filter(function(x){ return x && x !== tid; });
         if (links.length) srcNode.dataset.linksTo = links.join(' ');
         else srcNode.removeAttribute('data-links-to');
         hideArrowTip();
         scheduleArrowUpdate(boardEl);
-        pushUndo(function(){
-          srcNode.dataset.linksTo = prevLinksTo;
-          scheduleArrowUpdate(boardEl);
+        pushAction({
+          undo: function(){
+            if (prevLinksTo) srcNode.dataset.linksTo = prevLinksTo;
+            else srcNode.removeAttribute('data-links-to');
+            scheduleArrowUpdate(boardEl);
+          },
+          redo: function(){
+            var l = (srcNode.dataset.linksTo || '').split(' ').filter(function(x){ return x && x !== tid; });
+            if (l.length) srcNode.dataset.linksTo = l.join(' ');
+            else srcNode.removeAttribute('data-links-to');
+            scheduleArrowUpdate(boardEl);
+          }
         });
       });
     });

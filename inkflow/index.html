@@ -646,21 +646,35 @@
   });
 
   /* ---------- navigation ---------- */
+  /* ---------- browser back/forward support ----------
+     Opening a folder or going home pushes a history entry (like navigating
+     between pages on a normal site), so the browser's back/forward buttons
+     move through them the same way. renderRoute() only ever updates what's
+     on screen — it never touches history itself — so popstate (fired by
+     back/forward) can call it safely without creating a loop. */
+  function renderRoute(id){
+    var board = id ? boardsRoot.querySelector('.board-screen[data-folder-id="' + cssEscape(id) + '"]') : null;
+    if (id && board){
+      document.getElementById('home-screen').hidden = true;
+      document.querySelectorAll('.board-screen').forEach(function(b){ b.hidden = (b.dataset.folderId !== id); });
+      requestAnimationFrame(function(){ requestAnimationFrame(function(){ updateArrows(board); }); });
+    } else {
+      document.querySelectorAll('.board-screen').forEach(function(b){ b.hidden = true; });
+      document.getElementById('home-screen').hidden = false;
+    }
+  }
   function goHome(){
-    document.querySelectorAll('.board-screen').forEach(function(b){ b.hidden = true; });
-    document.getElementById('home-screen').hidden = false;
+    renderRoute(null);
+    history.pushState({ folderId: null }, '', location.pathname + location.search);
   }
   function openFolder(id){
     if (!id) return;
-    document.getElementById('home-screen').hidden = true;
-    document.querySelectorAll('.board-screen').forEach(function(b){
-      b.hidden = (b.dataset.folderId !== id);
-    });
-    var board = boardsRoot.querySelector('.board-screen[data-folder-id="' + cssEscape(id) + '"]');
-    if (board){
-      requestAnimationFrame(function(){ requestAnimationFrame(function(){ updateArrows(board); }); });
-    }
+    renderRoute(id);
+    history.pushState({ folderId: id }, '', '#' + encodeURIComponent(id));
   }
+  window.addEventListener('popstate', function(e){
+    renderRoute(e.state && e.state.folderId ? e.state.folderId : null);
+  });
   function cssEscape(s){
     return String(s).replace(/[^a-zA-Z0-9_-]/g, function(c){ return '\\' + c; });
   }
@@ -1629,7 +1643,12 @@
 
   /* ---------- boot ---------- */
   document.querySelectorAll('.canvas-stage').forEach(applyStageTransform);
-  var openBoard = document.querySelector('.board-screen:not([hidden])');
-  if (openBoard) requestAnimationFrame(function(){ updateArrows(openBoard); });
+  var initialFolderId = location.hash ? decodeURIComponent(location.hash.slice(1)) : null;
+  if (initialFolderId && boardsRoot.querySelector('.board-screen[data-folder-id="' + cssEscape(initialFolderId) + '"]')){
+    renderRoute(initialFolderId);
+    history.replaceState({ folderId: initialFolderId }, '', '#' + encodeURIComponent(initialFolderId));
+  } else {
+    history.replaceState({ folderId: null }, '', location.pathname + location.search);
+  }
 })();
 </script>

@@ -100,6 +100,7 @@
     border-radius:8px; padding:8px 12px; color:var(--ink); font-family:'IBM Plex Mono', monospace;
     font-size:0.82rem; outline:none;
   }
+  .search-input:hover{ border-color:var(--accent); }
   .search-input:focus{ border-color:var(--accent); }
   .search-input[hidden]{ display:none; }
 
@@ -771,6 +772,7 @@
   function hideArrowTip(){ arrowTip.hidden = true; }
 
   /* ---------- search: folder names + everything drawn inside each folder ---------- */
+  var searchBox = document.querySelector('.search-box');
   var searchToggle = document.getElementById('search-toggle');
   var searchInput = document.getElementById('search-input');
 
@@ -805,26 +807,40 @@
     });
   }
 
-  function closeSearch(){
+  function openSearch(){
+    searchInput.hidden = false;
+    searchToggle.classList.add('is-active');
+  }
+  function collapseSearch(){
+    // don't collapse out from under someone mid-search: keep it open while
+    // they're typing (focused) or have an active query
+    if (document.activeElement === searchInput) return;
+    if (searchInput.value.trim()) return;
+    searchInput.hidden = true;
+    searchToggle.classList.remove('is-active');
+  }
+  function clearAndCloseSearch(){
     searchInput.hidden = true;
     searchInput.value = '';
     searchToggle.classList.remove('is-active');
     runSearch('');
   }
 
+  searchBox.addEventListener('mouseenter', openSearch);
+  searchBox.addEventListener('mouseleave', collapseSearch);
   searchToggle.addEventListener('click', function(){
     if (searchInput.hidden){
-      searchInput.hidden = false;
-      searchToggle.classList.add('is-active');
+      openSearch();
       searchInput.focus();
     } else {
-      closeSearch();
+      clearAndCloseSearch();
     }
   });
   searchInput.addEventListener('input', function(){ runSearch(searchInput.value); });
   searchInput.addEventListener('keydown', function(e){
-    if (e.key === 'Escape'){ closeSearch(); searchToggle.blur(); }
+    if (e.key === 'Escape'){ clearAndCloseSearch(); searchToggle.blur(); }
   });
+  searchInput.addEventListener('blur', function(){ collapseSearch(); });
 
   /* ---------- folder creation / deletion ---------- */
   document.getElementById('new-folder-btn').addEventListener('click', function(){

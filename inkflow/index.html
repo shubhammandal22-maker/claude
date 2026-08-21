@@ -83,8 +83,28 @@
     background-size:24px 24px;
   }
   .home-head{ max-width:920px; margin:0 auto; padding:92px 32px 12px; }
+  .home-head-row{ display:flex; align-items:center; gap:14px; }
   .home-head h1{ font-size:clamp(2.2rem, 4vw + 1rem, 3.4rem); letter-spacing:-0.02em; }
   .home-sub{ color:var(--ink-soft); font-size:0.92rem; margin:10px 0 0; }
+
+  .search-box{ display:flex; align-items:center; gap:6px; }
+  .search-toggle{
+    flex:none; width:36px; height:36px; border-radius:50%;
+    border:1.5px solid var(--border); background:var(--surface);
+    color:var(--ink-soft); cursor:pointer; display:flex; align-items:center; justify-content:center;
+  }
+  .search-toggle:hover, .search-toggle.is-active{ color:var(--accent); border-color:var(--accent); }
+  .search-toggle svg{ width:17px; height:17px; }
+  .search-input{
+    width:220px; max-width:40vw; border:1.5px solid var(--border); background:var(--surface);
+    border-radius:8px; padding:8px 12px; color:var(--ink); font-family:'IBM Plex Mono', monospace;
+    font-size:0.82rem; outline:none;
+  }
+  .search-input:focus{ border-color:var(--accent); }
+  .search-input[hidden]{ display:none; }
+
+  .folder-tile.search-match{ border-color:var(--accent); box-shadow:0 0 0 2px var(--accent), 0 6px 18px var(--shadow); }
+  .folder-tile.search-dim{ opacity:0.32; }
 
   .folder-grid{
     max-width:920px; margin:0 auto; padding:28px 32px 80px;
@@ -377,7 +397,15 @@
 
   <section id="home-screen" class="screen">
     <header class="home-head">
-      <h1>Inkflow</h1>
+      <div class="home-head-row">
+        <h1>Inkflow</h1>
+        <div class="search-box">
+          <button class="search-toggle" id="search-toggle" type="button" aria-label="Search">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.35-4.35"/></svg>
+          </button>
+          <input class="search-input" id="search-input" type="text" placeholder="Search folders and boxes…" hidden>
+        </div>
+      </div>
       <p class="home-sub">Folders of flows. Open one to sketch boxes, arrows and pictures.</p>
     </header>
     <div class="folder-grid" id="folder-grid">
@@ -741,6 +769,62 @@
     arrowTip.hidden = false;
   }
   function hideArrowTip(){ arrowTip.hidden = true; }
+
+  /* ---------- search: folder names + everything drawn inside each folder ---------- */
+  var searchToggle = document.getElementById('search-toggle');
+  var searchInput = document.getElementById('search-input');
+
+  function boardSearchText(board){
+    var parts = [];
+    var title = board.querySelector('.board-title');
+    if (title) parts.push(title.textContent);
+    board.querySelectorAll('.canvas-surface .node').forEach(function(node){
+      ['.node-title', '.node-body', '.node-caption', '.link-url'].forEach(function(sel){
+        var el = node.querySelector(sel);
+        if (el) parts.push(el.textContent);
+      });
+    });
+    return parts.join(' ').toLowerCase();
+  }
+
+  function runSearch(query){
+    var q = query.trim().toLowerCase();
+    var tiles = folderGrid.querySelectorAll('.folder-tile:not(.new-folder-tile)');
+    tiles.forEach(function(tile){
+      if (!q){
+        tile.classList.remove('search-match', 'search-dim');
+        return;
+      }
+      var fid = tile.dataset.folderId;
+      var nameMatch = tile.querySelector('.folder-name').textContent.toLowerCase().indexOf(q) !== -1;
+      var board = boardsRoot.querySelector('.board-screen[data-folder-id="' + cssEscape(fid) + '"]');
+      var contentMatch = !nameMatch && board ? boardSearchText(board).indexOf(q) !== -1 : false;
+      var match = nameMatch || contentMatch;
+      tile.classList.toggle('search-match', match);
+      tile.classList.toggle('search-dim', !match);
+    });
+  }
+
+  function closeSearch(){
+    searchInput.hidden = true;
+    searchInput.value = '';
+    searchToggle.classList.remove('is-active');
+    runSearch('');
+  }
+
+  searchToggle.addEventListener('click', function(){
+    if (searchInput.hidden){
+      searchInput.hidden = false;
+      searchToggle.classList.add('is-active');
+      searchInput.focus();
+    } else {
+      closeSearch();
+    }
+  });
+  searchInput.addEventListener('input', function(){ runSearch(searchInput.value); });
+  searchInput.addEventListener('keydown', function(e){
+    if (e.key === 'Escape'){ closeSearch(); searchToggle.blur(); }
+  });
 
   /* ---------- folder creation / deletion ---------- */
   document.getElementById('new-folder-btn').addEventListener('click', function(){

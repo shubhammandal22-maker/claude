@@ -74,6 +74,7 @@
   .undo-btn:disabled, .redo-btn:disabled{ opacity:0.35; cursor:not-allowed; }
   .undo-btn:disabled:hover, .redo-btn:disabled:hover{ color:var(--ink-soft); border-color:var(--border); }
   .undo-btn svg, .redo-btn svg{ width:17px; height:17px; }
+  .undo-btn[hidden], .redo-btn[hidden]{ display:none; }
 
   /* ---------- Home screen ---------- */
   .screen{ position:absolute; inset:0; }
@@ -139,6 +140,9 @@
   }
   .new-folder-tile:hover{ color:var(--accent); }
   .new-folder-tile .plus{ font-size:1.3rem; line-height:1; color:var(--accent); }
+
+  .folder-tile.is-dragging{ box-shadow:0 14px 32px var(--shadow); opacity:0.94; }
+  .folder-placeholder{ aspect-ratio:4/3.1; border-radius:12px; border:1.5px dashed var(--border); opacity:0.5; }
 
   /* ---------- Profile screen ---------- */
   #profile-screen{
@@ -1004,6 +1008,8 @@
     document.getElementById('home-screen').hidden = screen !== 'home';
     if (screen !== 'board') document.querySelectorAll('.board-screen').forEach(function(b){ b.hidden = true; });
     profilePill.hidden = screen !== 'home';
+    undoBtn.hidden = screen !== 'board';
+    redoBtn.hidden = screen !== 'board';
     if (screen !== 'profiles') updateProfilePill();
   }
   function renderRoute(state){
@@ -1030,23 +1036,41 @@
     }
     showScreen('home');
   }
+  /* URLs are cosmetic only: the actual routing decision always comes from
+     the pushState `state` object (see renderRoute), never from parsing the
+     path back out. A folder's slug is derived from its current name each
+     time, with the folder id appended if two names collide. */
+  function slugify(str){
+    return String(str || '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'flow';
+  }
+  function folderPath(id){
+    var tile = folderGrid.querySelector('.folder-tile[data-folder-id="' + cssEscape(id) + '"]');
+    var name = tile ? tile.querySelector('.folder-name').textContent : '';
+    var slug = slugify(name);
+    var dupe = false;
+    folderGrid.querySelectorAll('.folder-tile:not(.new-folder-tile)').forEach(function(t){
+      if (t.dataset.folderId !== id && slugify(t.querySelector('.folder-name').textContent) === slug) dupe = true;
+    });
+    if (dupe) slug += '-' + String(id).replace(/[^a-z0-9]/gi, '').slice(-4);
+    return '/' + slug;
+  }
   function selectProfile(id){
     if (!id) return;
     renderRoute({ profileId: id, folderId: null });
-    history.pushState({ profileId: id, folderId: null }, '', location.pathname + location.search);
+    history.pushState({ profileId: id, folderId: null }, '', '/');
   }
   function switchProfile(){
     renderRoute({ profileId: null, folderId: null });
-    history.pushState({ profileId: null, folderId: null }, '', location.pathname + location.search);
+    history.pushState({ profileId: null, folderId: null }, '', '/');
   }
   function goHome(){
     renderRoute({ profileId: activeProfileId, folderId: null });
-    history.pushState({ profileId: activeProfileId, folderId: null }, '', location.pathname + location.search);
+    history.pushState({ profileId: activeProfileId, folderId: null }, '', '/');
   }
   function openFolder(id){
     if (!id) return;
     renderRoute({ profileId: activeProfileId, folderId: id });
-    history.pushState({ profileId: activeProfileId, folderId: id }, '', location.pathname + location.search);
+    history.pushState({ profileId: activeProfileId, folderId: id }, '', folderPath(id));
   }
   window.addEventListener('popstate', function(e){
     renderRoute(e.state || { profileId: null, folderId: null });
@@ -1995,8 +2019,83 @@
     scheduleArrowUpdate(boardEl);
   }
 
+  /* ---------- dragging folder tiles to reorder them ---------- */
+  function startFolderReorder(e, tile){
+    var startX = e.clientX, startY = e.clientY;
+    var moved = false;
+    var placeholder, grabX, grabY;
+    var originalParent = tile.parentNode, originalNext = tile.nextSibling;
+
+    function activate(){
+      moved = true;
+      blurActiveEditable();
+      var rect = tile.getBoundingClientRect();
+      grabX = startX - rect.left; grabY = startY - rect.top;
+      placeholder = document.createElement('div');
+      placeholder.className = 'folder-placeholder';
+      folderGrid.insertBefore(placeholder, tile);
+      tile.classList.add('is-dragging');
+      tile.style.position = 'fixed';
+      tile.style.width = rect.width + 'px';
+      tile.style.height = rect.height + 'px';
+      tile.style.left = rect.left + 'px';
+      tile.style.top = rect.top + 'px';
+      tile.style.zIndex = 2000;
+      tile.style.pointerEvents = 'none';
+    }
+    function onMove(ev){
+      if (!moved){
+        if (Math.abs(ev.clientX - startX) < 6 && Math.abs(ev.clientY - startY) < 6) return;
+        activate();
+      }
+      ev.preventDefault();
+      tile.style.left = (ev.clientX - grabX) + 'px';
+      tile.style.top = (ev.clientY - grabY) + 'px';
+      var hovered = document.elementFromPoint(ev.clientX, ev.clientY);
+      var overTile = hovered && hovered.closest('.folder-tile');
+      if (overTile && overTile !== tile && overTile.parentNode === folderGrid){
+        if (overTile.classList.contains('new-folder-tile')){
+          folderGrid.insertBefore(placeholder, overTile);
+        } else {
+          var overRect = overTile.getBoundingClientRect();
+          var before = ev.clientX < overRect.left + overRect.width / 2;
+          folderGrid.insertBefore(placeholder, before ? overTile : overTile.nextSibling);
+        }
+      }
+    }
+    function onUp(){
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerup', onUp);
+      if (!moved) return;
+      folderGrid.insertBefore(tile, placeholder);
+      placeholder.remove();
+      tile.classList.remove('is-dragging');
+      tile.style.position = tile.style.width = tile.style.height = '';
+      tile.style.left = tile.style.top = tile.style.zIndex = tile.style.pointerEvents = '';
+      var newNext = tile.nextSibling;
+      if (originalParent !== folderGrid || originalNext !== newNext){
+        var fromNext = originalNext, toNext = newNext;
+        pushAction({
+          undo: function(){ originalParent.insertBefore(tile, fromNext); },
+          redo: function(){ folderGrid.insertBefore(tile, toNext); }
+        });
+      }
+      var blockClick = function(ce){ ce.stopPropagation(); ce.preventDefault(); };
+      tile.addEventListener('click', blockClick, true);
+      setTimeout(function(){ tile.removeEventListener('click', blockClick, true); }, 0);
+    }
+    window.addEventListener('pointermove', onMove);
+    window.addEventListener('pointerup', onUp);
+  }
+
   /* ---------- dragging nodes, resizing, panning canvas ---------- */
   app.addEventListener('pointerdown', function(e){
+    var folderTile = e.target.closest('.folder-tile');
+    if (folderTile && folderTile.parentNode === folderGrid && !folderTile.classList.contains('new-folder-tile')
+        && !e.target.closest('.folder-delete') && !e.target.closest('.folder-name')){
+      startFolderReorder(e, folderTile);
+      return;
+    }
     var connector = e.target.closest('.node-connector');
     if (connector){
       startConnection(e, connector.closest('.node'));
@@ -2297,6 +2396,6 @@
      folders from localStorage and autosave takes over from there. */
   renderProfileGrid();
   showScreen('profiles');
-  history.replaceState({ profileId: null, folderId: null }, '', location.pathname + location.search);
+  history.replaceState({ profileId: null, folderId: null }, '', '/');
 })();
 </script>

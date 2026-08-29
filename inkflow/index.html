@@ -885,6 +885,7 @@
      signing in"). Until then every route resolves to the #auth-screen. */
   var isUnlocked = false;
   var lastRouteState = { profileId: null, folderId: null };
+  var pendingReloadProfileId = null;  // a sync merge that waited for the user to stop editing
   function notifySubs(subs, a, b){
     for (var i = 0; i < subs.length; i++){ try { subs[i](a, b); } catch(e){} }
   }
@@ -942,7 +943,26 @@
     loadProfileRaw: loadProfileRaw,
     saveProfileRaw: saveProfileRaw,
     getActiveProfileId: function(){ return activeProfileId; },
-    reloadActiveProfile: function(){ if (activeProfileId) loadProfileData(activeProfileId); },
+    isUnlocked: function(){ return isUnlocked; },
+    /* Re-render the active profile from localStorage after the sync layer
+       merged remote changes into it. Two guards so this never blanks the app:
+       (1) if the user is mid-edit in the open board, defer — loadProfileData()
+           rebuilds the whole DOM and would wipe the caret + in-progress text;
+           flushSave already persisted their edit, the merge shows on next nav.
+       (2) loadProfileData() recreates every board <section> with the template's
+           default hidden attr and never re-shows one, so re-run renderRoute()
+           to put back whatever screen (board / home / profiles) we were on. */
+    reloadActiveProfile: function(){
+      if (!activeProfileId) return;
+      var ae = document.activeElement;
+      if (ae && ae.isContentEditable && ae.closest && ae.closest('.board-screen:not([hidden])')){
+        pendingReloadProfileId = activeProfileId;
+        return;
+      }
+      pendingReloadProfileId = null;
+      loadProfileData(activeProfileId);
+      renderRoute(lastRouteState);
+    },
     renderProfileGrid: renderProfileGrid,
     refreshProfilePill: function(){ updateProfilePill(); },
     loadFolderMtimes: loadFolderMtimes,
@@ -1176,6 +1196,7 @@
     state = state || {};
     lastRouteState = state;
     if (!isUnlocked){
+      if (window.console) console.debug('[inkflow] route -> sign-in gate (locked)', state);
       showScreen('auth');
       return;
     }
@@ -2084,6 +2105,22 @@
     updateFormatBarState(activeSizeTarget.closest('.board-screen'));
   });
 
+  /* a remote sync merge that was deferred because the user was typing —
+     apply it once focus leaves the editable (see bridge.reloadActiveProfile) */
+  document.addEventListener('focusout', function(){
+    if (!pendingReloadProfileId) return;
+    setTimeout(function(){
+      var ae = document.activeElement;
+      if (ae && ae.isContentEditable && ae.closest && ae.closest('.board-screen:not([hidden])')) return;
+      var pid = pendingReloadProfileId;
+      pendingReloadProfileId = null;
+      if (pid && pid === activeProfileId){
+        loadProfileData(activeProfileId);
+        renderRoute(lastRouteState);
+      }
+    }, 0);
+  });
+
   function applyFormat(kind){
     if (!activeNodeBody || !activeNodeBody.isConnected) return;
     activeNodeBody.focus();
@@ -2637,7 +2674,7 @@ async function boot(){
   let unsub = null;
   let applyingRemote = false;      // guards against re-pushing what we just pulled
   let pushTimer = null, profTimer = null;
-  const pendingWrites = new Set(); // folder ids we just wrote — ignore their listener echo
+  const lastPushedAt = {};         // folderId -> updatedAt we last wrote; listener ignores any echo at/under it
   const cloudMirror = {};          // cloudMirror[profileId][folderId] = canonical JSON we believe is in Firestore
   const knownCloudProfiles = new Set();
 
@@ -2655,13 +2692,14 @@ async function boot(){
       signInBtn.disabled = false;
     }
   });
-  signOutBtn.addEventListener('click', () => { signOut(auth); });
+  let manualSignOut = false;
+  signOutBtn.addEventListener('click', () => { manualSignOut = true; signOut(auth); });
 
   try { await getRedirectResult(auth); } catch(e){ /* nothing pending */ }
 
   onAuthStateChanged(auth, async (user) => {
     if (unsub){ unsub(); unsub = null; }
-    pendingWrites.clear();
+    for (const k in lastPushedAt) delete lastPushedAt[k];
     for (const k in cloudMirror) delete cloudMirror[k];
     knownCloudProfiles.clear();
 
@@ -2669,9 +2707,17 @@ async function boot(){
       uid = null;
       chip.hidden = true;
       signInBtn.disabled = false;
-      bridge.lock();               // back to the sign-in gate
+      if (manualSignOut){
+        manualSignOut = false;
+        bridge.lock();             // deliberate sign-out -> back to the gate
+      } else if (bridge.isUnlocked()){
+        // token expired / signed out elsewhere while mid-session: don't yank
+        // the app away — keep working locally, just stop cloud sync
+        toast("Signed out — still saved on this device. Sign in again to resume backup.");
+      }
       return;
     }
+    manualSignOut = false;
     uid = user.uid;
     emailEl.textContent = user.email || 'Signed in';
     chip.hidden = false;
@@ -2880,7 +2926,7 @@ async function boot(){
         continue;
       }
       payload.updatedAt = now;
-      pendingWrites.add(f.id);
+      lastPushedAt[f.id] = now;
       batch.set(uDoc('folders', f.id), payload);
       mirror[f.id] = c;
       mtimes[f.id] = now;
@@ -2889,7 +2935,7 @@ async function boot(){
     // folders removed locally -> tombstone
     for (const fid of Object.keys(mirror)){
       if (present[fid]) continue;
-      pendingWrites.add(fid);
+      lastPushedAt[fid] = now;
       batch.set(uDoc('folders', fid), { profileId: profileId, deleted: true, updatedAt: now }, { merge: true });
       delete mirror[fid];
       mtimes[fid] = now;
@@ -2910,10 +2956,10 @@ async function boot(){
       snap.docChanges().forEach(ch => {
         const fid = ch.doc.id;
         const x = ch.doc.data();
-        if (pendingWrites.has(fid)){
-          if (ch.type !== 'removed') pendingWrites.delete(fid);
-          return;
-        }
+        // ignore the echo of our own write (Firestore fires it once or twice:
+        // local-latency then server-confirmed) — anything at/under the stamp
+        // we wrote is us, not another device
+        if (lastPushedAt[fid] && (x.updatedAt || 0) <= lastPushedAt[fid]) return;
         const pid = x.profileId;
         if (!pid) return;
         const blob = dirty[pid] || blobFor(pid);
@@ -2945,6 +2991,7 @@ async function boot(){
         bridge.saveProfileRaw(pid, JSON.stringify({ folders: dirty[pid].folders }));
       }
       if (activeTouched){
+        console.debug('[inkflow-sync] applying remote folder change to the open profile');
         applyingRemote = true;
         try { bridge.reloadActiveProfile(); } finally { applyingRemote = false; }
       }

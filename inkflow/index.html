@@ -189,19 +189,46 @@
   }
   .new-profile-tile:hover .new-profile-avatar{ color:var(--accent); border-color:var(--accent); }
 
-  /* ---------- cloud sync (Google sign-in) ---------- */
-  .cloud-auth{ margin:18px 0 0; display:flex; justify-content:center; }
-  .cloud-auth[hidden]{ display:none; }
-  .cloud-btn{
-    display:inline-flex; align-items:center; gap:8px;
-    border:1.5px solid var(--border); background:var(--surface); color:var(--ink);
-    border-radius:9px; padding:9px 16px; cursor:pointer;
-    font-family:'IBM Plex Mono', monospace; font-size:0.8rem;
+  /* ---------- sign-in gate ---------- */
+  #auth-screen{
+    display:flex; align-items:center; justify-content:center;
+    background-image:radial-gradient(var(--bg-dot) 1.4px, transparent 1.4px);
+    background-size:24px 24px;
   }
-  .cloud-btn:hover{ border-color:var(--accent); color:var(--accent-ink); }
-  .cloud-btn[hidden]{ display:none; }
+  #auth-screen[hidden]{ display:none; }
+  .auth-card{
+    display:flex; flex-direction:column; align-items:center; gap:20px;
+    max-width:380px; padding:40px 30px; text-align:center;
+  }
+  .auth-mark{
+    font-family:'Bricolage Grotesque', ui-sans-serif, sans-serif; font-weight:800;
+    font-size:clamp(2.6rem, 9vw, 3.6rem); letter-spacing:-0.03em; color:var(--ink); line-height:1;
+  }
+  .auth-tag{ margin:0; max-width:32ch; color:var(--ink-soft); font-size:0.9rem; line-height:1.65; }
+  .gsi-btn{
+    display:inline-flex; align-items:center; justify-content:center; gap:12px;
+    min-width:250px; margin-top:4px; padding:13px 24px;
+    border:1px solid var(--border); border-radius:999px;
+    background:var(--surface); color:var(--ink);
+    font-family:'IBM Plex Mono', ui-monospace, monospace; font-size:0.88rem; font-weight:500;
+    cursor:pointer; box-shadow:0 1px 2px var(--shadow);
+    transition:box-shadow .16s ease, transform .16s ease, border-color .16s ease;
+  }
+  .gsi-btn:hover{ transform:translateY(-1px); border-color:var(--ink-faint); box-shadow:0 8px 24px var(--shadow); }
+  .gsi-btn:active{ transform:translateY(0); box-shadow:0 1px 2px var(--shadow); }
+  .gsi-btn:disabled{ opacity:0.55; cursor:default; transform:none; box-shadow:none; }
+  .gsi-icon{ display:flex; flex:none; width:18px; height:18px; }
+  .auth-skip{
+    border:none; background:none; color:var(--ink-faint); cursor:pointer; padding:4px;
+    font-family:'IBM Plex Mono', ui-monospace, monospace; font-size:0.74rem;
+    text-decoration:underline; text-underline-offset:3px;
+  }
+  .auth-skip:hover{ color:var(--ink-soft); }
+
+  /* ---------- account chip (profile picker) ---------- */
   .cloud-chip{
-    display:inline-flex; align-items:center; gap:8px;
+    margin:18px 0 0;
+    display:inline-flex; align-items:center; gap:8px; vertical-align:middle;
     border:1.5px solid var(--border); background:var(--surface); border-radius:20px;
     padding:5px 6px 5px 12px; font-family:'IBM Plex Mono', monospace; font-size:0.74rem; color:var(--ink-soft);
   }
@@ -522,20 +549,28 @@
     </div>
   </div>
 
+  <section id="auth-screen" class="screen">
+    <div class="auth-card">
+      <div class="auth-mark">Inkflow</div>
+      <p class="auth-tag">Folders of flows — boxes, arrows and pictures. Sign in so every sketch is backed up and follows you between devices.</p>
+      <button class="gsi-btn" id="cloud-signin-btn" type="button">
+        <span class="gsi-icon" aria-hidden="true">
+          <svg viewBox="0 0 18 18" width="18" height="18"><path fill="#4285F4" d="M17.64 9.2c0-.64-.06-1.25-.16-1.84H9v3.48h4.84a4.14 4.14 0 0 1-1.8 2.72v2.26h2.92c1.7-1.57 2.68-3.88 2.68-6.62Z"/><path fill="#34A853" d="M9 18c2.43 0 4.47-.8 5.96-2.18l-2.92-2.26c-.8.54-1.83.86-3.04.86-2.34 0-4.32-1.58-5.03-3.7H.96v2.33A9 9 0 0 0 9 18Z"/><path fill="#FBBC05" d="M3.97 10.72a5.4 5.4 0 0 1 0-3.44V4.95H.96a9 9 0 0 0 0 8.1l3.01-2.33Z"/><path fill="#EA4335" d="M9 3.58c1.32 0 2.5.45 3.44 1.35l2.58-2.58C13.46.89 11.43 0 9 0A9 9 0 0 0 .96 4.95l3.01 2.33C4.68 5.16 6.66 3.58 9 3.58Z"/></svg>
+        </span>
+        <span>Continue with Google</span>
+      </button>
+      <button class="auth-skip" id="auth-skip-btn" type="button">Use on this device without signing in</button>
+    </div>
+  </section>
+
   <section id="profile-screen" class="screen">
     <header class="profile-head">
       <h1>Inkflow</h1>
       <p class="profile-sub">Who's sketching?</p>
-      <div class="cloud-auth" id="cloud-auth" hidden>
-        <button class="cloud-btn" id="cloud-signin-btn" type="button">
-          <svg viewBox="0 0 18 18" width="15" height="15" aria-hidden="true"><path fill="#4285F4" d="M17.64 9.2c0-.64-.06-1.25-.16-1.84H9v3.48h4.84a4.14 4.14 0 0 1-1.8 2.72v2.26h2.92c1.7-1.57 2.68-3.88 2.68-6.62Z"/><path fill="#34A853" d="M9 18c2.43 0 4.47-.8 5.96-2.18l-2.92-2.26c-.8.54-1.83.86-3.04.86-2.34 0-4.32-1.58-5.03-3.7H.96v2.33A9 9 0 0 0 9 18Z"/><path fill="#FBBC05" d="M3.97 10.72a5.4 5.4 0 0 1 0-3.44V4.95H.96a9 9 0 0 0 0 8.1l3.01-2.33Z"/><path fill="#EA4335" d="M9 3.58c1.32 0 2.5.45 3.44 1.35l2.58-2.58C13.46.89 11.43 0 9 0A9 9 0 0 0 .96 4.95l3.01 2.33C4.68 5.16 6.66 3.58 9 3.58Z"/></svg>
-          Sign in with Google to back up
-        </button>
-        <div class="cloud-chip" id="cloud-chip" hidden>
-          <span class="cloud-dot" aria-hidden="true"></span>
-          <span id="cloud-email"></span>
-          <button class="cloud-signout" id="cloud-signout-btn" type="button">Sign out</button>
-        </div>
+      <div class="cloud-chip" id="cloud-chip" hidden>
+        <span class="cloud-dot" aria-hidden="true"></span>
+        <span id="cloud-email"></span>
+        <button class="cloud-signout" id="cloud-signout-btn" type="button">Sign out</button>
       </div>
     </header>
     <div class="profile-grid" id="profile-grid">
@@ -838,12 +873,18 @@
      folders+boards per profile, autosaved on every change. */
   var PROFILES_KEY = 'inkflow-profiles';
   var ACTIVE_PROFILE_KEY = 'inkflow-active-profile';
+  var AUTH_HINT_KEY = 'inkflow-auth-hint';
   var PROFILE_COLORS = ['#2F5FD6','#C0392B','#1F9E6B','#D68C1F','#8B5CF6','#E05C97','#0EA5A5','#6B7280'];
   var activeProfileId = null;
   var suspendAutosave = false;
   var saveTimer = null;
   var localChangeSubscribers = [];
   var profilesChangeSubscribers = [];
+  /* the app sits behind a sign-in gate: isUnlocked flips true once the auth
+     module confirms a signed-in user (or the visitor taps "use without
+     signing in"). Until then every route resolves to the #auth-screen. */
+  var isUnlocked = false;
+  var lastRouteState = { profileId: null, folderId: null };
   function notifySubs(subs, a, b){
     for (var i = 0; i < subs.length; i++){ try { subs[i](a, b); } catch(e){} }
   }
@@ -907,7 +948,25 @@
     loadFolderMtimes: loadFolderMtimes,
     saveFolderMtimes: saveFolderMtimes,
     onLocalChange: function(cb){ localChangeSubscribers.push(cb); },
-    onProfilesChange: function(cb){ profilesChangeSubscribers.push(cb); }
+    onProfilesChange: function(cb){ profilesChangeSubscribers.push(cb); },
+    /* open the app: called with persist:true from a real sign-in (remembered
+       across reloads), or persist:false from the "without signing in" link */
+    unlock: function(persist){
+      try { if (persist) localStorage.setItem(AUTH_HINT_KEY, '1'); } catch(e){}
+      if (isUnlocked) return;
+      isUnlocked = true;
+      renderRoute(lastRouteState);
+    },
+    /* back to the gate — on manual sign-out */
+    lock: function(){
+      try { localStorage.removeItem(AUTH_HINT_KEY); } catch(e){}
+      if (activeProfileId) flushSave();
+      isUnlocked = false;
+      activeProfileId = null;
+      lastRouteState = { profileId: null, folderId: null };
+      try { history.replaceState(lastRouteState, '', '/'); } catch(e){}
+      showScreen('auth');
+    }
   };
 
   function initials(name){
@@ -1103,17 +1162,23 @@
      move through them the same way. renderRoute() only ever updates what's
      on screen — it never touches history itself — so popstate (fired by
      back/forward) can call it safely without creating a loop. */
-  function showScreen(screen){ // 'profiles' | 'home' | 'board'
+  function showScreen(screen){ // 'auth' | 'profiles' | 'home' | 'board'
+    document.getElementById('auth-screen').hidden = screen !== 'auth';
     document.getElementById('profile-screen').hidden = screen !== 'profiles';
     document.getElementById('home-screen').hidden = screen !== 'home';
     if (screen !== 'board') document.querySelectorAll('.board-screen').forEach(function(b){ b.hidden = true; });
     profilePill.hidden = screen !== 'home';
     undoBtn.hidden = screen !== 'board';
     redoBtn.hidden = screen !== 'board';
-    if (screen !== 'profiles') updateProfilePill();
+    if (screen !== 'profiles' && screen !== 'auth') updateProfilePill();
   }
   function renderRoute(state){
     state = state || {};
+    lastRouteState = state;
+    if (!isUnlocked){
+      showScreen('auth');
+      return;
+    }
     if (!state.profileId){
       flushSave();
       showScreen('profiles');
@@ -2491,11 +2556,17 @@
   window.addEventListener('resize', function(){ scheduleArrowUpdate(); });
 
   /* ---------- boot ----------
-     Always land on the profile picker on a fresh page load (like choosing
-     "who's watching") — picking a profile loads that profile's saved
-     folders from localStorage and autosave takes over from there. */
+     Land on the sign-in gate. If we signed in on a previous visit
+     (AUTH_HINT_KEY) show the profile picker straight away for a flash-free
+     load — the auth module below still verifies the session and drops back to
+     the gate if it turns out we're actually signed out. Picking a profile
+     loads that profile's saved folders from localStorage. */
+  document.getElementById('auth-skip-btn').addEventListener('click', function(){
+    window.__inkflowBridge.unlock(false);
+  });
+  try { isUnlocked = localStorage.getItem(AUTH_HINT_KEY) === '1'; } catch(e){}
   renderProfileGrid();
-  showScreen('profiles');
+  showScreen(isUnlocked ? 'profiles' : 'auth');
   history.replaceState({ profileId: null, folderId: null }, '', '/');
 })();
 </script>
@@ -2528,9 +2599,16 @@ const FIREBASE_CONFIG = {
 
 const bridge = window.__inkflowBridge;
 const hasConfig = !!(FIREBASE_CONFIG && FIREBASE_CONFIG.apiKey && FIREBASE_CONFIG.projectId);
-const authUI = document.getElementById('cloud-auth');
 
-if (bridge && hasConfig && authUI) boot();
+if (bridge && hasConfig){
+  boot().catch((e) => {
+    console.warn('[inkflow-sync] could not start, opening app offline', e);
+    bridge.unlock(false);
+  });
+} else if (bridge){
+  // no Firebase config compiled in — no gate, just open the app
+  bridge.unlock(false);
+}
 
 async function boot(){
   const SDK = "https://www.gstatic.com/firebasejs/10.13.2/";
@@ -2563,8 +2641,6 @@ async function boot(){
   const cloudMirror = {};          // cloudMirror[profileId][folderId] = canonical JSON we believe is in Firestore
   const knownCloudProfiles = new Set();
 
-  authUI.hidden = false;
-
   signInBtn.addEventListener('click', async () => {
     signInBtn.disabled = true;
     try {
@@ -2592,13 +2668,14 @@ async function boot(){
     if (!user){
       uid = null;
       chip.hidden = true;
-      signInBtn.hidden = false;
+      signInBtn.disabled = false;
+      bridge.lock();               // back to the sign-in gate
       return;
     }
     uid = user.uid;
     emailEl.textContent = user.email || 'Signed in';
     chip.hidden = false;
-    signInBtn.hidden = true;
+    bridge.unlock(true);           // open the app now; sync runs in the background
     try {
       await pullAll();
       startFolderListener();

@@ -280,8 +280,12 @@ records — that was left untouched to keep load/render identical. The sync laye
 bridges between that blob and the per-folder Firestore docs in the plan; folder
 `order` is the array index, profile `order` is the profiles-array index.
 
-**To activate:** do the "Firebase project setup" steps, then paste the
-`firebaseConfig` object into `FIREBASE_CONFIG` in that module script (currently
-`{}`), deploy, and sign in once to migrate the recovered data up.
+**Update (live):** `FIREBASE_CONFIG` is filled in (project `inkflow-2243a`) and
+the feature is live. The app now opens on a **sign-in gate** (`#auth-screen`):
+"Continue with Google" or a small "use without signing in" link. A successful
+sign-in sets `inkflow-auth-hint` in localStorage so subsequent loads skip
+straight to the profile picker (Firebase's own `local` persistence keeps the
+session until manual sign-out). The account chip + Sign out live on the profile
+picker.
 
 **Not yet done:** the Testing checklist above (needs a live Firebase project).

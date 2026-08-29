@@ -1342,6 +1342,20 @@
     if (el && el.isContentEditable && typeof el.blur === 'function') el.blur();
   }
 
+  /* Home screen: a pointerdown anywhere that isn't a folder name commits an
+     in-progress rename (blur it) and drops any lingering text selection —
+     so clicking empty space, another tile, the header, etc. always ends
+     editing cleanly. */
+  document.getElementById('home-screen').addEventListener('pointerdown', function(e){
+    if (e.target.closest('.folder-name')) return;
+    blurActiveEditable();
+    var sel = window.getSelection && window.getSelection();
+    if (sel && sel.rangeCount && sel.anchorNode && sel.anchorNode.parentElement
+        && sel.anchorNode.parentElement.closest('.folder-name')){
+      sel.removeAllRanges();
+    }
+  });
+
   /* ---------- undo / redo ----------
      Every mutating action (add/delete/move/resize a box, link/unlink boxes,
      add/delete a folder, or finish editing a text field) pushes one

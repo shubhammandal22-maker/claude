@@ -1126,6 +1126,7 @@
 
   /* ---------- loading / seeding a profile's folders ---------- */
   function clearAllFolders(){
+    hideArrowTip(); // its hover target is about to be removed
     folderGrid.querySelectorAll('.folder-tile:not(.new-folder-tile)').forEach(function(t){ t.remove(); });
     boardsRoot.querySelectorAll('.board-screen').forEach(function(b){ b.remove(); });
   }
@@ -1183,7 +1184,7 @@
      on screen — it never touches history itself — so popstate (fired by
      back/forward) can call it safely without creating a loop. */
   function showScreen(screen){ // 'auth' | 'profiles' | 'home' | 'board'
-    hideArrowTip(); // a board can be torn down mid-hover, orphaning the "Delete" tip
+    if (screen !== 'board') hideArrowTip(); // don't kill it while staying on a board
     document.getElementById('auth-screen').hidden = screen !== 'auth';
     document.getElementById('profile-screen').hidden = screen !== 'profiles';
     document.getElementById('home-screen').hidden = screen !== 'home';

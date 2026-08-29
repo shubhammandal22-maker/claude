@@ -1030,8 +1030,70 @@
         return;
       }
       pendingReloadProfileId = null;
-      loadProfileData(activeProfileId);
+      loadProfileData(activeProfileId, true);
       renderRoute(lastRouteState);
+    },
+    /* Targeted version used by the live listener: refresh only the folders that
+       actually changed remotely, in place, without rebuilding untouched boards
+       or clearing the undo history. */
+    applyRemoteFolders: function(changedIds){
+      if (!activeProfileId || !changedIds || !changedIds.length) return;
+      var data = null;
+      try { data = JSON.parse(loadProfileRaw(activeProfileId)); } catch(e){}
+      if (!data || !Array.isArray(data.folders)) return;
+      var byId = {};
+      data.folders.forEach(function(f){ byId[f.id] = f; });
+
+      var ae = document.activeElement;
+      var openBoard = document.querySelector('.board-screen:not([hidden])');
+      var openFid = openBoard ? openBoard.dataset.folderId : null;
+      var editingOpen = openBoard && ae && ae.isContentEditable && openBoard.contains(ae);
+
+      suspendAutosave = true;
+      changedIds.forEach(function(fid){
+        var f = byId[fid];
+        var tile = folderGrid.querySelector('.folder-tile[data-folder-id="' + cssEscape(fid) + '"]');
+        var board = boardsRoot.querySelector('.board-screen[data-folder-id="' + cssEscape(fid) + '"]');
+
+        if (!f){                                   // deleted on another device
+          if (selectedFolderId === fid) setFolderSelection(null);
+          if (tile) tile.remove();
+          if (board) board.remove();
+          if (fid === openFid){ suspendAutosave = false; goHome(); suspendAutosave = true; }
+          return;
+        }
+        if (!tile){
+          var tf = document.getElementById('tpl-folder').content.cloneNode(true);
+          tf.querySelector('.folder-tile').dataset.folderId = fid;
+          tf.querySelector('.folder-name').innerHTML = f.name || '';
+          folderGrid.insertBefore(tf, newFolderBtnEl());
+        } else {
+          var nm = tile.querySelector('.folder-name');
+          if (!nm.isContentEditable && nm.innerHTML !== (f.name || '')) nm.innerHTML = f.name || '';
+        }
+        if (!board){
+          var bf = document.getElementById('tpl-board').content.cloneNode(true);
+          bf.querySelector('.board-screen').dataset.folderId = fid;
+          boardsRoot.appendChild(bf);
+          board = boardsRoot.querySelector('.board-screen[data-folder-id="' + cssEscape(fid) + '"]');
+        }
+        if (fid === openFid && editingOpen){       // don't yank the DOM mid-edit
+          pendingReloadProfileId = activeProfileId;
+          return;
+        }
+        var surface = board.querySelector('.canvas-surface');
+        if (surface.innerHTML !== (f.surfaceHTML || '')) surface.innerHTML = f.surfaceHTML || '';
+        var stage = board.querySelector('.canvas-stage');
+        stage.dataset.panX = f.panX || '0';
+        stage.dataset.panY = f.panY || '0';
+        stage.dataset.scale = f.scale || '1';
+        var bt = board.querySelector('.board-title');
+        if (!bt.isContentEditable && bt.innerHTML !== (f.name || '')) bt.innerHTML = f.name || '';
+        applyStageTransform(stage);
+        board.querySelectorAll('.node').forEach(observeNode);
+        if (fid === openFid) requestAnimationFrame(function(){ updateArrows(board); });
+      });
+      suspendAutosave = false;
     },
     renderProfileGrid: renderProfileGrid,
     refreshProfilePill: function(){ updateProfilePill(); },
@@ -1212,7 +1274,7 @@
   }
   function newFolderBtnEl(){ return document.getElementById('new-folder-btn'); }
 
-  function loadProfileData(profileId){
+  function loadProfileData(profileId, keepHistory){
     suspendAutosave = true;
     clearAllFolders();
     var raw = loadProfileRaw(profileId);
@@ -1242,7 +1304,9 @@
     }
     document.querySelectorAll('.canvas-stage').forEach(applyStageTransform);
     document.querySelectorAll('.node').forEach(observeNode);
-    undoStack.length = 0; redoStack.length = 0; updateHistoryBtns();
+    // a sync refresh of the same profile keeps the undo history; only a real
+    // profile switch clears it
+    if (!keepHistory){ undoStack.length = 0; redoStack.length = 0; updateHistoryBtns(); }
     suspendAutosave = false;
     flushSave();
   }
@@ -1736,15 +1800,56 @@
   });
 
   /* ---------- node creation ---------- */
-  function nextCascadePos(surface){
-    var count = surface.querySelectorAll('.node').length;
-    var col = count % 5, row = Math.floor(count / 5);
-    return { x: 40 + col * 250, y: 40 + row * 170 };
+  /* Put a new box where the user is actually looking (the centre of the
+     current pan/zoom), then step it down-right until it isn't sitting on top
+     of an existing box — so new boxes never appear hidden behind old ones. */
+  function newNodePos(boardEl){
+    var surface = boardEl.querySelector('.canvas-surface');
+    var stage = boardEl.querySelector('.canvas-stage');
+    var vp = boardEl.querySelector('.canvas-viewport');
+    var s = parseFloat(stage.dataset.scale || '1') || 1;
+    var px = parseFloat(stage.dataset.panX || '0');
+    var py = parseFloat(stage.dataset.panY || '0');
+    var vr = vp.getBoundingClientRect();
+    var W = 230, H = 150;
+    var cx = (vr.width / 2 - px) / s - W / 2;
+    var cy = (vr.height / 2 - py) / s - H / 2;
+    if (!isFinite(cx)) cx = 40;
+    if (!isFinite(cy)) cy = 40;
+
+    var boxes = [];
+    surface.querySelectorAll('.node').forEach(function(n){
+      boxes.push({ x: parseFloat(n.style.left) || 0, y: parseFloat(n.style.top) || 0,
+                   w: n.offsetWidth || W, h: n.offsetHeight || H });
+    });
+    function overlaps(x, y){
+      return boxes.some(function(b){
+        return x < b.x + b.w - 8 && x + W > b.x + 8 && y < b.y + b.h - 8 && y + H > b.y + 8;
+      });
+    }
+    var x = Math.round(cx), y = Math.round(cy), tries = 0;
+    while (overlaps(x, y) && tries < 60){ x += 32; y += 30; tries++; }
+    return { x: x, y: y };
+  }
+  /* bring a box to the front. Recomputes from the boxes actually present so
+     it still works after a reload (when zCounter has reset but saved boxes
+     carry higher inline z-indexes). */
+  function raiseNode(node){
+    var surface = node.closest('.canvas-surface');
+    var max = zCounter;
+    if (surface){
+      surface.querySelectorAll('.node').forEach(function(n){
+        var z = parseInt(n.style.zIndex, 10);
+        if (!isNaN(z) && z > max) max = z;
+      });
+    }
+    zCounter = max + 1;
+    node.style.zIndex = zCounter;
   }
 
   function addTextNode(boardEl){
     var surface = boardEl.querySelector('.canvas-surface');
-    var pos = nextCascadePos(surface);
+    var pos = newNodePos(boardEl);
     var frag = document.getElementById('tpl-node-text').content.cloneNode(true);
     var node = frag.querySelector('.node');
     node.style.left = pos.x + 'px';
@@ -1752,6 +1857,7 @@
     ensureNodeId(node);
     surface.appendChild(frag);
     var appended = surface.lastElementChild;
+    raiseNode(appended);
     observeNode(appended);
     scheduleArrowUpdate(boardEl);
     var body = appended.querySelector('.node-body');
@@ -1774,7 +1880,7 @@
 
   function addImageNode(boardEl, dataUrl){
     var surface = boardEl.querySelector('.canvas-surface');
-    var pos = nextCascadePos(surface);
+    var pos = newNodePos(boardEl);
     var frag = document.getElementById('tpl-node-image').content.cloneNode(true);
     var node = frag.querySelector('.node');
     node.style.left = pos.x + 'px';
@@ -1783,6 +1889,7 @@
     frag.querySelector('.node-img').src = dataUrl;
     surface.appendChild(frag);
     var appended = surface.lastElementChild;
+    raiseNode(appended);
     observeNode(appended);
     scheduleArrowUpdate(boardEl);
     pushAction({
@@ -1808,7 +1915,7 @@
 
   function addLinkNode(boardEl){
     var surface = boardEl.querySelector('.canvas-surface');
-    var pos = nextCascadePos(surface);
+    var pos = newNodePos(boardEl);
     var frag = document.getElementById('tpl-node-link').content.cloneNode(true);
     var node = frag.querySelector('.node');
     node.style.left = pos.x + 'px';
@@ -1816,6 +1923,7 @@
     ensureNodeId(node);
     surface.appendChild(frag);
     var appended = surface.lastElementChild;
+    raiseNode(appended);
     observeNode(appended);
     updateLinkNode(appended);
     scheduleArrowUpdate(boardEl);
@@ -2300,7 +2408,7 @@
       var pid = pendingReloadProfileId;
       pendingReloadProfileId = null;
       if (pid && pid === activeProfileId){
-        loadProfileData(activeProfileId);
+        loadProfileData(activeProfileId, true);
         renderRoute(lastRouteState);
       }
     }, 0);
@@ -2554,7 +2662,7 @@
     var boardEl = node.closest('.board-screen');
     var stage = node.closest('.canvas-stage');
     var scale = parseFloat(stage.dataset.scale || '1');
-    node.style.zIndex = ++zCounter;
+    raiseNode(node);
     var startX = e.clientX, startY = e.clientY;
     var baseLeft = parseFloat(node.style.left) || 0;
     var baseTop = parseFloat(node.style.top) || 0;
@@ -3177,7 +3285,7 @@ async function boot(){
       if (applyingRemote) return;
       const activePid = bridge.getActiveProfileId();
       const dirty = {};
-      let activeTouched = false;
+      const activeChanged = [];
 
       snap.docChanges().forEach(ch => {
         const fid = ch.doc.id;
@@ -3199,7 +3307,7 @@ async function boot(){
             mtimes[fid] = x.updatedAt;
             delete cloudMirror[pid][fid];
             dirty[pid] = blob;
-            if (pid === activePid) activeTouched = true;
+            if (pid === activePid) activeChanged.push(fid);
           }
         } else if ((x.updatedAt || 0) > localMtime){
           const merged = foldersFromCloudDoc(ch.doc);
@@ -3208,7 +3316,7 @@ async function boot(){
           mtimes[fid] = x.updatedAt;
           cloudMirror[pid][fid] = canon(folderPayload(pid, x, x.order || 0));
           dirty[pid] = blob;
-          if (pid === activePid) activeTouched = true;
+          if (pid === activePid) activeChanged.push(fid);
         }
         bridge.saveFolderMtimes(pid, mtimes);
       });
@@ -3216,10 +3324,10 @@ async function boot(){
       for (const pid of Object.keys(dirty)){
         bridge.saveProfileRaw(pid, JSON.stringify({ folders: dirty[pid].folders }));
       }
-      if (activeTouched){
-        console.debug('[inkflow-sync] applying remote folder change to the open profile');
+      if (activeChanged.length){
+        console.debug('[inkflow-sync] applying remote change to folders:', activeChanged);
         applyingRemote = true;
-        try { bridge.reloadActiveProfile(); } finally { applyingRemote = false; }
+        try { bridge.applyRemoteFolders(activeChanged); } finally { applyingRemote = false; }
       }
     }, (err) => { console.warn('[inkflow-sync] folder listener error', err); });
   }

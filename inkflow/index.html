@@ -1183,6 +1183,7 @@
      on screen — it never touches history itself — so popstate (fired by
      back/forward) can call it safely without creating a loop. */
   function showScreen(screen){ // 'auth' | 'profiles' | 'home' | 'board'
+    hideArrowTip(); // a board can be torn down mid-hover, orphaning the "Delete" tip
     document.getElementById('auth-screen').hidden = screen !== 'auth';
     document.getElementById('profile-screen').hidden = screen !== 'profiles';
     document.getElementById('home-screen').hidden = screen !== 'home';

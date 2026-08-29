@@ -379,13 +379,16 @@
     position:relative; z-index:2; flex:1; height:100%; overflow:hidden; cursor:default;
     background-image:radial-gradient(var(--bg-dot) 1.4px, transparent 1.4px);
     background-size:26px 26px;
+    /* one-finger drag pans the infinite canvas — stop the browser from
+       claiming the gesture as a scroll / pull-to-refresh on touch */
+    touch-action:none;
   }
   .canvas-viewport.panning{ cursor:grabbing; }
   .canvas-stage{
     position:absolute; left:0; top:0; transform-origin:0 0;
-    width:100%; height:100%;
+    width:100%; height:100%; touch-action:none;
   }
-  .canvas-surface{ position:relative; width:100%; height:100%; }
+  .canvas-surface{ position:relative; width:100%; height:100%; touch-action:none; }
 
   .arrows-overlay{ position:absolute; inset:0; z-index:1; overflow:visible; pointer-events:none; }
   /* sits above .canvas-viewport (z-index:2) so its thin invisible hit-strokes
@@ -410,7 +413,7 @@
     position:absolute; top:-9px; left:50%; transform:translateX(-50%);
     width:18px; height:18px; border-radius:50%; z-index:3;
     background:var(--surface); border:1.5px solid var(--accent); color:var(--accent);
-    display:flex; align-items:center; justify-content:center; cursor:alias;
+    display:flex; align-items:center; justify-content:center; cursor:alias; touch-action:none;
   }
   .node-connector:hover{ background:var(--accent); color:#fff; }
   .node-connector svg{ width:8px; height:8px; }
@@ -429,7 +432,7 @@
   }
   .node-title:empty:before{ content:attr(data-placeholder); color:var(--ink-faint); font-weight:500; }
   .node-edge{
-    position:absolute; top:32px; bottom:16px; width:9px; z-index:4; cursor:grab;
+    position:absolute; top:32px; bottom:16px; width:9px; z-index:4; cursor:grab; touch-action:none;
   }
   .node-edge-left{ left:0; }
   .node-edge-right{ right:0; }
@@ -501,7 +504,7 @@
   }
   .node-caption:empty:before{ content:attr(data-placeholder); color:var(--ink-faint); }
   .node-resize{
-    position:absolute; right:0; bottom:0; width:16px; height:16px; cursor:nwse-resize;
+    position:absolute; right:0; bottom:0; width:16px; height:16px; cursor:nwse-resize; touch-action:none;
     background:
       linear-gradient(135deg, transparent 0 45%, var(--ink-faint) 45% 55%, transparent 55% 100%),
       linear-gradient(135deg, transparent 0 65%, var(--ink-faint) 65% 75%, transparent 75% 100%);
@@ -538,21 +541,24 @@
 
     .cloud-chip{ flex-wrap:wrap; justify-content:center; max-width:88vw; }
 
-    /* board: rail stacks above a full-width canvas */
+    /* board: a compact tool strip on top, canvas takes the rest of the screen */
     .board-screen{ flex-direction:column; }
     .title-rail{
       width:100%; height:auto; flex:none;
-      flex-direction:column; justify-content:flex-start; gap:12px;
-      padding:50px 16px 14px;
+      flex-direction:column; justify-content:flex-start; gap:9px;
+      padding:46px 12px 10px;
       border-right:none; border-bottom:1.5px solid var(--border);
-      max-height:min(48vh, 340px); overflow-y:auto;
+      max-height:52vh; overflow-y:auto;
       position:relative; z-index:5;        /* cover any arrow lines drawn beneath */
     }
     .title-wrap{ flex:none; }
-    .board-title{ font-size:1.4rem; line-height:1.15; }
-    .rail-tools{ gap:10px; }
+    .board-title{ font-size:1.25rem; line-height:1.2; }
+    .rail-tools{ gap:8px; }
+    .tool-row{ gap:6px; }
+    .tool-btn{ padding:8px 6px; font-size:0.7rem; letter-spacing:0.01em; }
+    .rail-label{ margin-bottom:4px; }
     .rail-hint{ display:none; }
-    .canvas-viewport{ flex:1; height:auto; min-height:0; }
+    .canvas-viewport{ flex:1 1 auto; height:auto; min-height:44vh; }
 
     .theme-toggle, .undo-btn, .redo-btn{ width:34px; height:34px; }
     .theme-toggle{ top:12px; right:12px; }
@@ -2536,9 +2542,11 @@
       viewport.classList.remove('panning');
       window.removeEventListener('pointermove', onMove);
       window.removeEventListener('pointerup', onUp);
+      window.removeEventListener('pointercancel', onUp);
     }
     window.addEventListener('pointermove', onMove);
     window.addEventListener('pointerup', onUp);
+    window.addEventListener('pointercancel', onUp);
   }
 
   function nudgeZoom(boardEl, delta){

@@ -2281,16 +2281,32 @@
     scheduleArrowUpdate(boardEl);
   }
 
-  /* ---------- dragging folder tiles to reorder them ---------- */
+  /* ---------- dragging folder tiles to reorder them ----------
+     Mouse: pick up as soon as the pointer moves ~6px. Touch: a plain drag is
+     the browser scrolling the grid, so the tile is only picked up after a
+     ~300ms stationary press (long-press) — if the finger moves before that,
+     we bail out entirely and let the page scroll normally. */
   function startFolderReorder(e, tile){
+    var isTouch = e.pointerType === 'touch';
+    var pointerId = e.pointerId;
     var startX = e.clientX, startY = e.clientY;
     var moved = false;
+    var armed = !isTouch;      // touch only arms after the long-press timer
+    var holdTimer = null;
     var placeholder, grabX, grabY;
     var originalParent = tile.parentNode, originalNext = tile.nextSibling;
 
+    function cleanup(){
+      clearTimeout(holdTimer);
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerup', onUp);
+      window.removeEventListener('pointercancel', onCancel);
+    }
     function activate(){
+      if (moved) return;
       moved = true;
       blurActiveEditable();
+      try { tile.setPointerCapture(pointerId); } catch(err){}
       var rect = tile.getBoundingClientRect();
       grabX = startX - rect.left; grabY = startY - rect.top;
       placeholder = document.createElement('div');
@@ -2306,6 +2322,13 @@
       tile.style.pointerEvents = 'none';
     }
     function onMove(ev){
+      if (ev.pointerId !== pointerId) return;
+      if (!armed){
+        // still waiting on the long-press: any real movement means the user
+        // is scrolling, so get out of the way
+        if (Math.abs(ev.clientX - startX) > 8 || Math.abs(ev.clientY - startY) > 8) cleanup();
+        return;
+      }
       if (!moved){
         if (Math.abs(ev.clientX - startX) < 6 && Math.abs(ev.clientY - startY) < 6) return;
         activate();
@@ -2325,12 +2348,14 @@
         }
       }
     }
-    function onUp(){
-      window.removeEventListener('pointermove', onMove);
-      window.removeEventListener('pointerup', onUp);
-      if (!moved) return;
+    function onCancel(ev){
+      if (ev.pointerId !== pointerId) return;
+      cleanup();
+      if (moved) dropTile();
+    }
+    function dropTile(){
       folderGrid.insertBefore(tile, placeholder);
-      placeholder.remove();
+      if (placeholder) placeholder.remove();
       tile.classList.remove('is-dragging');
       tile.style.position = tile.style.width = tile.style.height = '';
       tile.style.left = tile.style.top = tile.style.zIndex = tile.style.pointerEvents = '';
@@ -2346,8 +2371,22 @@
       tile.addEventListener('click', blockClick, true);
       setTimeout(function(){ tile.removeEventListener('click', blockClick, true); }, 0);
     }
+    function onUp(ev){
+      if (ev.pointerId !== pointerId) return;
+      cleanup();
+      if (moved) dropTile();
+    }
+
+    if (isTouch){
+      holdTimer = setTimeout(function(){
+        armed = true;
+        if (navigator.vibrate) { try { navigator.vibrate(12); } catch(err){} }
+        activate();
+      }, 300);
+    }
     window.addEventListener('pointermove', onMove);
     window.addEventListener('pointerup', onUp);
+    window.addEventListener('pointercancel', onCancel);
   }
 
   /* ---------- dragging nodes, resizing, panning canvas ---------- */

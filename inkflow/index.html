@@ -1,4 +1,6 @@
 ﻿<title>Inkflow</title>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,500;12..96,600;12..96,700;12..96,800&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
 <style>
@@ -507,6 +509,62 @@
   }
   .node:hover .node-resize{ opacity:1; }
   .node-link .node-resize{ cursor:ew-resize; }
+
+  /* ---------- phones / narrow screens ---------- */
+  @media (max-width: 640px){
+    /* dvh tracks the shrinking mobile address bar; falls back to the 100vh
+       rule above where unsupported */
+    body, #app{ height:100dvh; }
+
+    .home-head{ padding:70px 20px 10px; }
+    .profile-head{ padding:84px 20px 10px; }
+    .home-head h1{ font-size:2rem; }
+    .home-head-row{ gap:10px; }
+    .home-sub, .profile-sub{ font-size:0.85rem; }
+
+    .folder-grid{
+      padding:20px 20px 60px; gap:12px;
+      grid-template-columns:repeat(auto-fill, minmax(140px, 1fr));
+    }
+    .folder-tile{ padding:13px; aspect-ratio:4/3.4; border-radius:11px; }
+    .folder-name{ font-size:0.92rem; }
+    .folder-delete{ opacity:1; }          /* no hover on touch */
+    .search-input{ max-width:56vw; }
+
+    .profile-grid{ gap:22px 16px; padding:30px 18px 60px; }
+    .profile-tile{ width:96px; }
+    .profile-avatar{ width:66px; height:66px; font-size:1.35rem; }
+    .profile-delete{ opacity:1; }
+
+    .cloud-chip{ flex-wrap:wrap; justify-content:center; max-width:88vw; }
+
+    /* board: rail stacks above a full-width canvas */
+    .board-screen{ flex-direction:column; }
+    .title-rail{
+      width:100%; height:auto; flex:none;
+      flex-direction:column; justify-content:flex-start; gap:12px;
+      padding:50px 16px 14px;
+      border-right:none; border-bottom:1.5px solid var(--border);
+      max-height:min(48vh, 340px); overflow-y:auto;
+      position:relative; z-index:5;        /* cover any arrow lines drawn beneath */
+    }
+    .title-wrap{ flex:none; }
+    .board-title{ font-size:1.4rem; line-height:1.15; }
+    .rail-tools{ gap:10px; }
+    .rail-hint{ display:none; }
+    .canvas-viewport{ flex:1; height:auto; min-height:0; }
+
+    .theme-toggle, .undo-btn, .redo-btn{ width:34px; height:34px; }
+    .theme-toggle{ top:12px; right:12px; }
+    .undo-btn{ top:12px; right:92px; }
+    .redo-btn{ top:12px; right:52px; }
+    .profile-pill{ top:12px; left:12px; max-width:58vw; }
+    .profile-pill span:last-child{ overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+
+    .confirm-box{ max-width:min(300px, calc(100vw - 32px)); }
+    .auth-card{ padding:30px 22px; gap:16px; }
+    .auth-mark{ font-size:2.8rem; }
+  }
 </style>
 
 <div id="app">

@@ -189,6 +189,38 @@
   }
   .new-profile-tile:hover .new-profile-avatar{ color:var(--accent); border-color:var(--accent); }
 
+  /* ---------- cloud sync (Google sign-in) ---------- */
+  .cloud-auth{ margin:18px 0 0; display:flex; justify-content:center; }
+  .cloud-auth[hidden]{ display:none; }
+  .cloud-btn{
+    display:inline-flex; align-items:center; gap:8px;
+    border:1.5px solid var(--border); background:var(--surface); color:var(--ink);
+    border-radius:9px; padding:9px 16px; cursor:pointer;
+    font-family:'IBM Plex Mono', monospace; font-size:0.8rem;
+  }
+  .cloud-btn:hover{ border-color:var(--accent); color:var(--accent-ink); }
+  .cloud-btn[hidden]{ display:none; }
+  .cloud-chip{
+    display:inline-flex; align-items:center; gap:8px;
+    border:1.5px solid var(--border); background:var(--surface); border-radius:20px;
+    padding:5px 6px 5px 12px; font-family:'IBM Plex Mono', monospace; font-size:0.74rem; color:var(--ink-soft);
+  }
+  .cloud-chip[hidden]{ display:none; }
+  .cloud-dot{ width:7px; height:7px; border-radius:50%; background:#1F9E6B; flex:none; }
+  .cloud-signout{
+    border:1.5px solid var(--border); background:var(--surface); color:var(--ink-soft);
+    border-radius:14px; padding:4px 10px; cursor:pointer; font-family:inherit; font-size:0.72rem;
+  }
+  .cloud-signout:hover{ border-color:var(--danger); color:var(--danger); }
+  .cloud-toast{
+    position:fixed; left:50%; bottom:26px; transform:translate(-50%, 20px);
+    background:var(--ink); color:var(--surface); padding:11px 18px; border-radius:9px;
+    font-family:'IBM Plex Mono', monospace; font-size:0.76rem; line-height:1.5; max-width:min(90vw, 420px);
+    box-shadow:0 10px 30px var(--shadow); opacity:0; pointer-events:none; z-index:200;
+    transition:opacity .2s ease, transform .2s ease;
+  }
+  .cloud-toast.is-visible{ opacity:1; transform:translate(-50%, 0); }
+
   .profile-pill{
     position:fixed; top:14px; left:18px; z-index:50;
     display:flex; align-items:center; gap:8px;
@@ -494,6 +526,17 @@
     <header class="profile-head">
       <h1>Inkflow</h1>
       <p class="profile-sub">Who's sketching?</p>
+      <div class="cloud-auth" id="cloud-auth" hidden>
+        <button class="cloud-btn" id="cloud-signin-btn" type="button">
+          <svg viewBox="0 0 18 18" width="15" height="15" aria-hidden="true"><path fill="#4285F4" d="M17.64 9.2c0-.64-.06-1.25-.16-1.84H9v3.48h4.84a4.14 4.14 0 0 1-1.8 2.72v2.26h2.92c1.7-1.57 2.68-3.88 2.68-6.62Z"/><path fill="#34A853" d="M9 18c2.43 0 4.47-.8 5.96-2.18l-2.92-2.26c-.8.54-1.83.86-3.04.86-2.34 0-4.32-1.58-5.03-3.7H.96v2.33A9 9 0 0 0 9 18Z"/><path fill="#FBBC05" d="M3.97 10.72a5.4 5.4 0 0 1 0-3.44V4.95H.96a9 9 0 0 0 0 8.1l3.01-2.33Z"/><path fill="#EA4335" d="M9 3.58c1.32 0 2.5.45 3.44 1.35l2.58-2.58C13.46.89 11.43 0 9 0A9 9 0 0 0 .96 4.95l3.01 2.33C4.68 5.16 6.66 3.58 9 3.58Z"/></svg>
+          Sign in with Google to back up
+        </button>
+        <div class="cloud-chip" id="cloud-chip" hidden>
+          <span class="cloud-dot" aria-hidden="true"></span>
+          <span id="cloud-email"></span>
+          <button class="cloud-signout" id="cloud-signout-btn" type="button">Sign out</button>
+        </div>
+      </div>
     </header>
     <div class="profile-grid" id="profile-grid">
       <button class="profile-tile new-profile-tile" id="new-profile-btn" type="button">
@@ -799,12 +842,18 @@
   var activeProfileId = null;
   var suspendAutosave = false;
   var saveTimer = null;
+  var localChangeSubscribers = [];
+  var profilesChangeSubscribers = [];
+  function notifySubs(subs, a, b){
+    for (var i = 0; i < subs.length; i++){ try { subs[i](a, b); } catch(e){} }
+  }
 
   function loadProfiles(){
     try { return JSON.parse(localStorage.getItem(PROFILES_KEY)) || []; } catch(e){ return []; }
   }
   function saveProfiles(list){
     try { localStorage.setItem(PROFILES_KEY, JSON.stringify(list)); } catch(e){}
+    notifySubs(profilesChangeSubscribers, list);
   }
   function profileDataKey(id){ return 'inkflow-data-' + id; }
   function loadProfileRaw(id){
@@ -816,6 +865,50 @@
   function deleteProfileRaw(id){
     try { localStorage.removeItem(profileDataKey(id)); } catch(e){}
   }
+
+  /* ---------- cloud-sync bridge ----------
+     The Firebase module at the end of this file talks to the app only through
+     this object, and only when a real FIREBASE_CONFIG has been pasted in.
+     With no config (or signed out) none of this runs and the app is byte-for-
+     byte the offline app it was before. Per-folder modification times let the
+     sync layer do last-write-wins per folder without a server clock. */
+  function folderMtimesKey(id){ return 'inkflow-folder-mtimes-' + id; }
+  function loadFolderMtimes(id){
+    try { return JSON.parse(localStorage.getItem(folderMtimesKey(id))) || {}; } catch(e){ return {}; }
+  }
+  function saveFolderMtimes(id, map){
+    try { localStorage.setItem(folderMtimesKey(id), JSON.stringify(map)); } catch(e){}
+  }
+  function touchFolderMtimes(profileId, snapshot, prevJson){
+    var prevById = {};
+    if (prevJson){
+      try { (JSON.parse(prevJson).folders || []).forEach(function(f){ prevById[f.id] = JSON.stringify(f); }); } catch(e){}
+    }
+    var mtimes = loadFolderMtimes(profileId);
+    var now = Date.now();
+    var seen = {};
+    snapshot.folders.forEach(function(f){
+      seen[f.id] = true;
+      if (prevById[f.id] !== JSON.stringify(f) || !mtimes[f.id]) mtimes[f.id] = now;
+    });
+    Object.keys(prevById).forEach(function(fid){ if (!seen[fid]) mtimes[fid] = now; });
+    saveFolderMtimes(profileId, mtimes);
+  }
+
+  window.__inkflowBridge = {
+    getProfiles: loadProfiles,
+    saveProfiles: saveProfiles,
+    loadProfileRaw: loadProfileRaw,
+    saveProfileRaw: saveProfileRaw,
+    getActiveProfileId: function(){ return activeProfileId; },
+    reloadActiveProfile: function(){ if (activeProfileId) loadProfileData(activeProfileId); },
+    renderProfileGrid: renderProfileGrid,
+    refreshProfilePill: function(){ updateProfilePill(); },
+    loadFolderMtimes: loadFolderMtimes,
+    saveFolderMtimes: saveFolderMtimes,
+    onLocalChange: function(cb){ localChangeSubscribers.push(cb); },
+    onProfilesChange: function(cb){ profilesChangeSubscribers.push(cb); }
+  };
 
   function initials(name){
     var trimmed = (name || '').trim();
@@ -932,7 +1025,14 @@
   function flushSave(){
     if (saveTimer){ clearTimeout(saveTimer); saveTimer = null; }
     if (!activeProfileId || suspendAutosave) return;
-    saveProfileRaw(activeProfileId, JSON.stringify(serializeActiveProfile()));
+    var snapshot = serializeActiveProfile();
+    var json = JSON.stringify(snapshot);
+    var prev = loadProfileRaw(activeProfileId);
+    saveProfileRaw(activeProfileId, json);
+    if (prev !== json){
+      touchFolderMtimes(activeProfileId, snapshot, prev);
+      notifySubs(localChangeSubscribers, activeProfileId, snapshot);
+    }
   }
   function scheduleSave(){
     if (!activeProfileId || suspendAutosave) return;
@@ -2398,4 +2498,435 @@
   showScreen('profiles');
   history.replaceState({ profileId: null, folderId: null }, '', '/');
 })();
+</script>
+
+<script type="module">
+/* ============================================================================
+   Inkflow cloud sync  —  optional "Sign in with Google" backup + cross-device
+   sync via Firebase Auth + Cloud Firestore.  See CLOUD_SYNC_PLAN.md.
+
+   DORMANT BY DEFAULT: with the empty FIREBASE_CONFIG below, this whole module
+   returns immediately and the app is exactly the offline app it was before.
+   To turn it on, paste the firebaseConfig object from the Firebase console
+   (Project settings -> General -> Your apps -> Web app) into FIREBASE_CONFIG.
+   Those keys are not secrets; the Firestore security rules protect the data.
+
+   Model:  localStorage stays the render source of truth. Firestore is a mirror
+   of per-profile / per-folder documents. Conflicts resolve last-write-wins per
+   folder, comparing Firestore's updatedAt against the local
+   inkflow-folder-mtimes-{profileId} map that index.html maintains.
+   ========================================================================== */
+
+const FIREBASE_CONFIG = {
+  apiKey: "AIzaSyCYCWbicZ10NEfe7syzYN2wPxJfK9MjrJ4",
+  authDomain: "inkflow-2243a.firebaseapp.com",
+  projectId: "inkflow-2243a",
+  storageBucket: "inkflow-2243a.firebasestorage.app",
+  messagingSenderId: "407511747751",
+  appId: "1:407511747751:web:3e5f72315543c401aadf82"
+};
+
+const bridge = window.__inkflowBridge;
+const hasConfig = !!(FIREBASE_CONFIG && FIREBASE_CONFIG.apiKey && FIREBASE_CONFIG.projectId);
+const authUI = document.getElementById('cloud-auth');
+
+if (bridge && hasConfig && authUI) boot();
+
+async function boot(){
+  const SDK = "https://www.gstatic.com/firebasejs/10.13.2/";
+  const [appMod, authMod, fsMod] = await Promise.all([
+    import(SDK + "firebase-app.js"),
+    import(SDK + "firebase-auth.js"),
+    import(SDK + "firebase-firestore.js"),
+  ]);
+  const { initializeApp } = appMod;
+  const { getAuth, GoogleAuthProvider, signInWithPopup, signInWithRedirect,
+          getRedirectResult, onAuthStateChanged, signOut } = authMod;
+  const { getFirestore, doc, collection, getDoc, getDocs, setDoc, writeBatch,
+          onSnapshot } = fsMod;
+
+  const fbApp = initializeApp(FIREBASE_CONFIG);
+  const auth = getAuth(fbApp);
+  const db = getFirestore(fbApp);
+  const provider = new GoogleAuthProvider();
+
+  const signInBtn = document.getElementById('cloud-signin-btn');
+  const signOutBtn = document.getElementById('cloud-signout-btn');
+  const chip = document.getElementById('cloud-chip');
+  const emailEl = document.getElementById('cloud-email');
+
+  let uid = null;
+  let unsub = null;
+  let applyingRemote = false;      // guards against re-pushing what we just pulled
+  let pushTimer = null, profTimer = null;
+  const pendingWrites = new Set(); // folder ids we just wrote — ignore their listener echo
+  const cloudMirror = {};          // cloudMirror[profileId][folderId] = canonical JSON we believe is in Firestore
+  const knownCloudProfiles = new Set();
+
+  authUI.hidden = false;
+
+  signInBtn.addEventListener('click', async () => {
+    signInBtn.disabled = true;
+    try {
+      await signInWithPopup(auth, provider);
+    } catch (e){
+      if (e && (e.code === 'auth/popup-blocked' || e.code === 'auth/cancelled-popup-request')){
+        try { await signInWithRedirect(auth, provider); return; } catch(e2){ e = e2; }
+      }
+      console.warn('[inkflow-sync] sign-in failed', e);
+      toast("Couldn't sign in. Please try again.");
+    } finally {
+      signInBtn.disabled = false;
+    }
+  });
+  signOutBtn.addEventListener('click', () => { signOut(auth); });
+
+  try { await getRedirectResult(auth); } catch(e){ /* nothing pending */ }
+
+  onAuthStateChanged(auth, async (user) => {
+    if (unsub){ unsub(); unsub = null; }
+    pendingWrites.clear();
+    for (const k in cloudMirror) delete cloudMirror[k];
+    knownCloudProfiles.clear();
+
+    if (!user){
+      uid = null;
+      chip.hidden = true;
+      signInBtn.hidden = false;
+      return;
+    }
+    uid = user.uid;
+    emailEl.textContent = user.email || 'Signed in';
+    chip.hidden = false;
+    signInBtn.hidden = true;
+    try {
+      await pullAll();
+      startFolderListener();
+    } catch (e){
+      console.warn('[inkflow-sync] initial sync failed', e);
+      toast("Cloud sync is having trouble. Your work is still saved on this device.");
+    }
+  });
+
+  /* ---------- doc helpers ---------- */
+  const uDoc = (...p) => doc(db, 'users', uid, ...p);
+  const uCol = (...p) => collection(db, 'users', uid, ...p);
+
+  function folderPayload(profileId, f, order){
+    return {
+      profileId: profileId,
+      name: f.name || '',
+      panX: f.panX || '0',
+      panY: f.panY || '0',
+      scale: f.scale || '1',
+      order: order,
+      surfaceHTML: f.surfaceHTML || '',
+      deleted: false
+    };
+  }
+  function canon(payload){
+    const c = Object.assign({}, payload);
+    delete c.updatedAt;
+    return JSON.stringify(c);
+  }
+  function blobFor(profileId){
+    let data = null;
+    try { data = JSON.parse(bridge.loadProfileRaw(profileId) || 'null'); } catch(e){}
+    if (!data || !Array.isArray(data.folders)) data = { folders: [] };
+    return data;
+  }
+  function foldersFromCloudDoc(d){
+    const x = d.data();
+    return { id: d.id, name: x.name || '', panX: x.panX || '0', panY: x.panY || '0',
+             scale: x.scale || '1', surfaceHTML: x.surfaceHTML || '' };
+  }
+
+  /* ---------- initial pull + merge ---------- */
+  async function pullAll(){
+    const metaSnap = await getDoc(uDoc('meta'));
+    if (!metaSnap.exists()){ await migrateUp(); return; }
+
+    const [profSnap, foldSnap] = await Promise.all([
+      getDocs(uCol('profiles')),
+      getDocs(uCol('folders')),
+    ]);
+
+    // --- profiles: add any missing locally, in cloud order ---
+    const localProfiles = bridge.getProfiles();
+    const have = new Set(localProfiles.map(p => p.id));
+    const cloudProfiles = [];
+    profSnap.forEach(d => { cloudProfiles.push(Object.assign({ id: d.id }, d.data())); knownCloudProfiles.add(d.id); });
+    cloudProfiles.sort((a, b) => (a.order || 0) - (b.order || 0));
+    let profilesChanged = false;
+    cloudProfiles.forEach(cp => {
+      if (!have.has(cp.id)){
+        localProfiles.push({ id: cp.id, name: cp.name || 'Profile', color: cp.color || '#2F5FD6', createdAt: cp.createdAt || Date.now() });
+        profilesChanged = true;
+      }
+    });
+    if (profilesChanged) bridge.saveProfiles(localProfiles);
+
+    // --- folders grouped by profile ---
+    const cloudByProfile = {};
+    foldSnap.forEach(d => {
+      const x = d.data();
+      if (!x.profileId) return;
+      (cloudByProfile[x.profileId] = cloudByProfile[x.profileId] || []).push(Object.assign({ id: d.id }, x));
+    });
+
+    const activePid = bridge.getActiveProfileId();
+    let activeTouched = false;
+    const pids = new Set([...Object.keys(cloudByProfile), ...localProfiles.map(p => p.id)]);
+
+    for (const pid of pids){
+      const data = blobFor(pid);
+      const localById = {};
+      data.folders.forEach(f => localById[f.id] = f);
+      const mtimes = bridge.loadFolderMtimes(pid);
+      const cloudFolders = cloudByProfile[pid] || [];
+      const cloudById = {};
+      const orderOf = {};
+      cloudMirror[pid] = cloudMirror[pid] || {};
+
+      cloudFolders.forEach(cf => {
+        cloudById[cf.id] = cf;
+        const localMtime = mtimes[cf.id] || 0;
+        if (cf.deleted){
+          if ((cf.updatedAt || 0) > localMtime && localById[cf.id]){
+            data.folders = data.folders.filter(f => f.id !== cf.id);
+            delete localById[cf.id];
+            mtimes[cf.id] = cf.updatedAt;
+            if (pid === activePid) activeTouched = true;
+          }
+          delete cloudMirror[pid][cf.id];
+          return;
+        }
+        orderOf[cf.id] = cf.order || 0;
+        cloudMirror[pid][cf.id] = canon(folderPayload(pid, cf, cf.order || 0));
+        if (!localById[cf.id] || (cf.updatedAt || 0) > localMtime){
+          const merged = foldersFromCloudDoc({ id: cf.id, data: () => cf });
+          const idx = data.folders.findIndex(f => f.id === cf.id);
+          if (idx === -1) data.folders.push(merged); else data.folders[idx] = merged;
+          localById[cf.id] = merged;
+          mtimes[cf.id] = cf.updatedAt || Date.now();
+          if (pid === activePid) activeTouched = true;
+        }
+      });
+
+      data.folders.sort((a, b) => {
+        const oa = a.id in orderOf ? orderOf[a.id] : 1e9;
+        const ob = b.id in orderOf ? orderOf[b.id] : 1e9;
+        return oa - ob;
+      });
+
+      bridge.saveProfileRaw(pid, JSON.stringify({ folders: data.folders }));
+      bridge.saveFolderMtimes(pid, mtimes);
+
+      // local-only folders -> push up
+      if (data.folders.some(f => !cloudById[f.id])) await pushFolders(pid, data.folders);
+    }
+
+    await writeMeta();
+    bridge.renderProfileGrid();
+    bridge.refreshProfilePill();
+    if (activeTouched){
+      applyingRemote = true;
+      try { bridge.reloadActiveProfile(); } finally { applyingRemote = false; }
+    }
+  }
+
+  /* ---------- first sign-in: upload everything as-is ---------- */
+  async function migrateUp(){
+    const profiles = bridge.getProfiles();
+    let batch = writeBatch(db), ops = 0;
+    const flush = async () => { if (ops){ await batch.commit(); batch = writeBatch(db); ops = 0; } };
+
+    for (let i = 0; i < profiles.length; i++){
+      const p = profiles[i];
+      batch.set(uDoc('profiles', p.id), { name: p.name || '', color: p.color || '', createdAt: p.createdAt || Date.now(), order: i });
+      knownCloudProfiles.add(p.id);
+      if (++ops >= 400) await flush();
+
+      const data = blobFor(p.id);
+      const mtimes = bridge.loadFolderMtimes(p.id);
+      const now = Date.now();
+      cloudMirror[p.id] = cloudMirror[p.id] || {};
+      for (let j = 0; j < data.folders.length; j++){
+        const f = data.folders[j];
+        const payload = folderPayload(p.id, f, j);
+        if (JSON.stringify(payload).length > 900000){
+          toast("\"" + (f.name || 'A flow').replace(/<[^>]*>/g, '') + "\" is too big to back up (too many images). It stays on this device.");
+          continue;
+        }
+        payload.updatedAt = mtimes[f.id] || now;
+        batch.set(uDoc('folders', f.id), payload);
+        cloudMirror[p.id][f.id] = canon(payload);
+        mtimes[f.id] = payload.updatedAt;
+        if (++ops >= 400) await flush();
+      }
+      bridge.saveFolderMtimes(p.id, mtimes);
+    }
+    await flush();
+    await writeMeta();
+  }
+
+  async function writeMeta(){
+    const profiles = bridge.getProfiles();
+    await setDoc(uDoc('meta'), {
+      profileOrder: profiles.map(p => p.id),
+      lastProfileId: bridge.getActiveProfileId() || null,
+      updatedAt: Date.now()
+    }, { merge: true });
+  }
+
+  /* ---------- push a profile's folders, diffing against the mirror ---------- */
+  async function pushFolders(profileId, folders){
+    cloudMirror[profileId] = cloudMirror[profileId] || {};
+    const mirror = cloudMirror[profileId];
+    const mtimes = bridge.loadFolderMtimes(profileId);
+    const now = Date.now();
+    let batch = writeBatch(db), ops = 0;
+    const commit = async () => { if (ops >= 400){ await batch.commit(); batch = writeBatch(db); ops = 0; } };
+
+    const present = {};
+    for (let i = 0; i < folders.length; i++){
+      const f = folders[i];
+      present[f.id] = true;
+      const payload = folderPayload(profileId, f, i);
+      const c = canon(payload);
+      if (mirror[f.id] === c) continue;
+      if (JSON.stringify(payload).length > 900000){
+        toast("\"" + (f.name || 'This flow').replace(/<[^>]*>/g, '') + "\" is too big to back up to the cloud (too many images). It's still saved on this device.");
+        continue;
+      }
+      payload.updatedAt = now;
+      pendingWrites.add(f.id);
+      batch.set(uDoc('folders', f.id), payload);
+      mirror[f.id] = c;
+      mtimes[f.id] = now;
+      ops++; await commit();
+    }
+    // folders removed locally -> tombstone
+    for (const fid of Object.keys(mirror)){
+      if (present[fid]) continue;
+      pendingWrites.add(fid);
+      batch.set(uDoc('folders', fid), { profileId: profileId, deleted: true, updatedAt: now }, { merge: true });
+      delete mirror[fid];
+      mtimes[fid] = now;
+      ops++; await commit();
+    }
+    if (ops) await batch.commit();
+    bridge.saveFolderMtimes(profileId, mtimes);
+  }
+
+  /* ---------- live cross-device updates ---------- */
+  function startFolderListener(){
+    unsub = onSnapshot(uCol('folders'), (snap) => {
+      if (applyingRemote) return;
+      const activePid = bridge.getActiveProfileId();
+      const dirty = {};
+      let activeTouched = false;
+
+      snap.docChanges().forEach(ch => {
+        const fid = ch.doc.id;
+        const x = ch.doc.data();
+        if (pendingWrites.has(fid)){
+          if (ch.type !== 'removed') pendingWrites.delete(fid);
+          return;
+        }
+        const pid = x.profileId;
+        if (!pid) return;
+        const blob = dirty[pid] || blobFor(pid);
+        const mtimes = bridge.loadFolderMtimes(pid);
+        const localMtime = mtimes[fid] || 0;
+        cloudMirror[pid] = cloudMirror[pid] || {};
+
+        if (x.deleted){
+          if ((x.updatedAt || 0) > localMtime && blob.folders.some(f => f.id === fid)){
+            blob.folders = blob.folders.filter(f => f.id !== fid);
+            mtimes[fid] = x.updatedAt;
+            delete cloudMirror[pid][fid];
+            dirty[pid] = blob;
+            if (pid === activePid) activeTouched = true;
+          }
+        } else if ((x.updatedAt || 0) > localMtime){
+          const merged = foldersFromCloudDoc(ch.doc);
+          const idx = blob.folders.findIndex(f => f.id === fid);
+          if (idx === -1) blob.folders.push(merged); else blob.folders[idx] = merged;
+          mtimes[fid] = x.updatedAt;
+          cloudMirror[pid][fid] = canon(folderPayload(pid, x, x.order || 0));
+          dirty[pid] = blob;
+          if (pid === activePid) activeTouched = true;
+        }
+        bridge.saveFolderMtimes(pid, mtimes);
+      });
+
+      for (const pid of Object.keys(dirty)){
+        bridge.saveProfileRaw(pid, JSON.stringify({ folders: dirty[pid].folders }));
+      }
+      if (activeTouched){
+        applyingRemote = true;
+        try { bridge.reloadActiveProfile(); } finally { applyingRemote = false; }
+      }
+    }, (err) => { console.warn('[inkflow-sync] folder listener error', err); });
+  }
+
+  /* ---------- local edits -> debounced push ---------- */
+  bridge.onLocalChange((profileId, snapshot) => {
+    if (!uid || applyingRemote) return;
+    clearTimeout(pushTimer);
+    pushTimer = setTimeout(async () => {
+      try { await pushFolders(profileId, snapshot.folders); await writeMeta(); }
+      catch (e){ console.warn('[inkflow-sync] push failed', e); }
+    }, 800);
+  });
+
+  bridge.onProfilesChange((list) => {
+    if (!uid || applyingRemote) return;
+    clearTimeout(profTimer);
+    profTimer = setTimeout(async () => {
+      try { await syncProfiles(list); }
+      catch (e){ console.warn('[inkflow-sync] profile sync failed', e); }
+    }, 800);
+  });
+
+  async function syncProfiles(list){
+    const ids = new Set(list.map(p => p.id));
+    const batch = writeBatch(db);
+    list.forEach((p, i) => {
+      batch.set(uDoc('profiles', p.id),
+        { name: p.name || '', color: p.color || '', createdAt: p.createdAt || Date.now(), order: i },
+        { merge: true });
+    });
+    const removed = [...knownCloudProfiles].filter(id => !ids.has(id));
+    if (removed.length){
+      const all = await getDocs(uCol('folders'));
+      all.forEach(d => {
+        const x = d.data();
+        if (removed.indexOf(x.profileId) !== -1 && !x.deleted){
+          batch.set(d.ref, { deleted: true, updatedAt: Date.now() }, { merge: true });
+        }
+      });
+      removed.forEach(id => { batch.delete(uDoc('profiles', id)); knownCloudProfiles.delete(id); delete cloudMirror[id]; });
+    }
+    await batch.commit();
+    list.forEach(p => knownCloudProfiles.add(p.id));
+    await writeMeta();
+  }
+
+  /* ---------- toast ---------- */
+  function toast(msg){
+    let el = document.getElementById('cloud-toast');
+    if (!el){
+      el = document.createElement('div');
+      el.id = 'cloud-toast';
+      el.className = 'cloud-toast';
+      document.body.appendChild(el);
+    }
+    el.textContent = msg;
+    el.classList.add('is-visible');
+    clearTimeout(el._t);
+    el._t = setTimeout(() => el.classList.remove('is-visible'), 5000);
+  }
+}
 </script>

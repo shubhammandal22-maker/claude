@@ -2688,6 +2688,9 @@ async function boot(){
   /* ---------- doc helpers ---------- */
   const uDoc = (...p) => doc(db, 'users', uid, ...p);
   const uCol = (...p) => collection(db, 'users', uid, ...p);
+  // meta lives at users/{uid}/meta/state — a 4-segment doc path (users/{uid}/meta
+  // alone is a collection ref), and still under the users/{uid}/{document=**} rule
+  const uMeta = () => doc(db, 'users', uid, 'meta', 'state');
 
   function folderPayload(profileId, f, order){
     return {
@@ -2720,7 +2723,7 @@ async function boot(){
 
   /* ---------- initial pull + merge ---------- */
   async function pullAll(){
-    const metaSnap = await getDoc(uDoc('meta'));
+    const metaSnap = await getDoc(uMeta());
     if (!metaSnap.exists()){ await migrateUp(); return; }
 
     const [profSnap, foldSnap] = await Promise.all([
@@ -2849,7 +2852,7 @@ async function boot(){
 
   async function writeMeta(){
     const profiles = bridge.getProfiles();
-    await setDoc(uDoc('meta'), {
+    await setDoc(uMeta(), {
       profileOrder: profiles.map(p => p.id),
       lastProfileId: bridge.getActiveProfileId() || null,
       updatedAt: Date.now()

@@ -51,7 +51,7 @@ under Firestore's 1 MiB/doc limit:
 
 ```
 users/{uid}
-  meta                       (doc)  { profileOrder: [profileId, …], lastProfileId }
+  meta/state                 (doc)  { profileOrder: [profileId, …], lastProfileId }
   profiles/{profileId}       (doc)  { name, color, createdAt, order }
   folders/{folderId}         (doc)  {
                                       profileId,

@@ -122,18 +122,24 @@
     box-shadow:0 1px 0 var(--shadow);
   }
   .folder-tile:hover{ border-color:var(--accent); box-shadow:0 6px 18px var(--shadow); transform:translateY(-2px); }
+  .folder-tile.is-selected{
+    border-style:solid; border-color:var(--accent);
+    box-shadow:0 0 0 2px var(--accent), 0 6px 18px var(--shadow);
+  }
   .folder-icon{ position:absolute; top:14px; left:16px; color:var(--accent); }
   .folder-name{
     font-family:'Bricolage Grotesque', sans-serif; font-weight:600; font-size:1.02rem;
-    outline:none; cursor:text; line-height:1.3;
+    outline:none; cursor:pointer; line-height:1.3;
   }
+  .folder-name[contenteditable="true"]{ cursor:text; }
   .folder-name:empty:before{ content:'Untitled flow'; color:var(--ink-faint); }
   .folder-delete{
     position:absolute; top:10px; right:10px; width:24px; height:24px; border-radius:50%;
     border:none; background:transparent; color:var(--ink-faint); font-size:1rem; line-height:1; cursor:pointer;
     opacity:0; display:flex; align-items:center; justify-content:center;
   }
-  .folder-tile:hover .folder-delete{ opacity:1; }
+  .folder-tile:hover .folder-delete,
+  .folder-tile.is-selected .folder-delete{ opacity:1; }
   .folder-delete:hover{ background:var(--danger); color:#fff; }
 
   .new-folder-tile{
@@ -656,7 +662,7 @@
           <input class="search-input" id="search-input" type="text" placeholder="Search folders and boxes…" hidden>
         </div>
       </div>
-      <p class="home-sub">Folders of flows. Open one to sketch boxes, arrows and pictures.</p>
+      <p class="home-sub">Folders of flows. Double-click to open · click to select · click the name again to rename.</p>
     </header>
     <div class="folder-grid" id="folder-grid">
 
@@ -665,7 +671,7 @@
         <div class="folder-icon" aria-hidden="true">
           <svg viewBox="0 0 24 20" width="26" height="22" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M1 3.5C1 2.12 2.12 1 3.5 1H9l2 2h9c1.38 0 2.5 1.12 2.5 2.5v11C22.5 17.88 21.38 19 20 19H3.5C2.12 19 1 17.88 1 16.5v-13Z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg>
         </div>
-        <div class="folder-name" contenteditable="true" spellcheck="false">Welcome</div>
+        <div class="folder-name" contenteditable="false" spellcheck="false">Welcome</div>
       </div>
 
       <button class="folder-tile new-folder-tile" id="new-folder-btn" type="button">
@@ -754,7 +760,7 @@
   <div class="folder-tile" data-folder-id="">
     <button class="folder-delete" type="button" aria-label="Delete flow">×</button>
     <div class="folder-icon" aria-hidden="true"><svg viewBox="0 0 24 20" width="26" height="22" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M1 3.5C1 2.12 2.12 1 3.5 1H9l2 2h9c1.38 0 2.5 1.12 2.5 2.5v11C22.5 17.88 21.38 19 20 19H3.5C2.12 19 1 17.88 1 16.5v-13Z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg></div>
-    <div class="folder-name" contenteditable="true" spellcheck="false"></div>
+    <div class="folder-name" contenteditable="false" spellcheck="false"></div>
   </div>
 </template>
 
@@ -1191,6 +1197,7 @@
   /* ---------- loading / seeding a profile's folders ---------- */
   function clearAllFolders(){
     hideArrowTip(); // its hover target is about to be removed
+    setFolderSelection(null);
     folderGrid.querySelectorAll('.folder-tile:not(.new-folder-tile)').forEach(function(t){ t.remove(); });
     boardsRoot.querySelectorAll('.board-screen').forEach(function(b){ b.remove(); });
   }
@@ -1256,6 +1263,7 @@
     profilePill.hidden = screen !== 'home';
     undoBtn.hidden = screen !== 'board';
     redoBtn.hidden = screen !== 'board';
+    if (screen !== 'home') setFolderSelection(null);
     if (screen !== 'profiles' && screen !== 'auth') updateProfilePill();
   }
   function renderRoute(state){
@@ -1342,11 +1350,56 @@
     if (el && el.isContentEditable && typeof el.blur === 'function') el.blur();
   }
 
-  /* Home screen: a pointerdown anywhere that isn't a folder name commits an
-     in-progress rename (blur it) and drops any lingering text selection —
-     so clicking empty space, another tile, the header, etc. always ends
-     editing cleanly. */
+  /* ---------- folder selection + rename ----------
+     Home-screen folders behave like files in a file manager:
+       single click  -> select (highlight), never opens or renames
+       double click  -> open
+       click the name of an already-selected folder (or F2) -> rename
+       Enter -> open · Delete/Backspace -> delete · Esc -> deselect / cancel rename
+       click empty space -> deselect + commit any rename
+     On touch there's no hover/keyboard, so a tap just opens. */
+  var selectedFolderId = null;
+  var folderRenameTimer = null;
+  var lastPointerType = 'mouse';
+
+  function folderTileById(id){
+    return id ? folderGrid.querySelector('.folder-tile[data-folder-id="' + cssEscape(id) + '"]') : null;
+  }
+  function setFolderSelection(id){
+    clearTimeout(folderRenameTimer);
+    selectedFolderId = id || null;
+    folderGrid.querySelectorAll('.folder-tile').forEach(function(t){
+      t.classList.toggle('is-selected', !!selectedFolderId && t.dataset.folderId === selectedFolderId);
+    });
+  }
+  function beginFolderRename(id){
+    clearTimeout(folderRenameTimer);
+    var tile = folderTileById(id);
+    var nameEl = tile && tile.querySelector('.folder-name');
+    if (!nameEl) return;
+    setFolderSelection(id);
+    nameEl.dataset.renameFrom = nameEl.innerHTML;
+    nameEl.setAttribute('contenteditable', 'true');
+    nameEl.focus();
+    var r = document.createRange();
+    r.selectNodeContents(nameEl);
+    var sel = window.getSelection();
+    sel.removeAllRanges(); sel.addRange(r);
+  }
+  // end rename once focus actually leaves the field (deferred so the generic
+  // focusout undo-snapshot handler still sees it as contenteditable)
+  folderGrid.addEventListener('focusout', function(e){
+    var nameEl = e.target.closest && e.target.closest('.folder-name');
+    if (!nameEl || !nameEl.isContentEditable) return;
+    setTimeout(function(){
+      if (document.activeElement === nameEl) return;
+      nameEl.setAttribute('contenteditable', 'false');
+      delete nameEl.dataset.renameFrom;
+    }, 0);
+  });
+
   document.getElementById('home-screen').addEventListener('pointerdown', function(e){
+    lastPointerType = e.pointerType || 'mouse';
     if (e.target.closest('.folder-name')) return;
     blurActiveEditable();
     var sel = window.getSelection && window.getSelection();
@@ -1354,6 +1407,9 @@
         && sel.anchorNode.parentElement.closest('.folder-name')){
       sel.removeAllRanges();
     }
+    // pointerdown on truly empty space clears the selection; a tile keeps it
+    // (the click handler re-selects the right one)
+    if (!e.target.closest('.folder-tile')) setFolderSelection(null);
   });
 
   /* ---------- undo / redo ----------
@@ -1499,11 +1555,10 @@
     board.dataset.folderId = id;
     boardsRoot.appendChild(boardFrag);
 
-    var newTile = folderGrid.querySelector('.folder-tile[data-folder-id="' + cssEscape(id) + '"] .folder-name');
-    if (newTile) newTile.focus();
+    beginFolderRename(id);
 
     pushAction({
-      undo: function(){ tile.remove(); board.remove(); },
+      undo: function(){ if (selectedFolderId === id) setFolderSelection(null); tile.remove(); board.remove(); },
       redo: function(){
         folderGrid.insertBefore(tile, document.getElementById('new-folder-btn'));
         boardsRoot.appendChild(board);
@@ -1550,6 +1605,7 @@
         var tileParent = tile.parentNode, tileNext = tile.nextSibling;
         var board = boardsRoot.querySelector('.board-screen[data-folder-id="' + cssEscape(fid) + '"]');
         var boardParent = board && board.parentNode, boardNext = board && board.nextSibling;
+        if (selectedFolderId === fid) setFolderSelection(null);
         tile.remove();
         if (board) board.remove();
         pushAction({
@@ -1567,8 +1623,22 @@
     }
 
     var tileEl = t.closest('.folder-tile');
-    if (tileEl && !tileEl.classList.contains('new-folder-tile') && !t.closest('.folder-name')){
-      openFolder(tileEl.dataset.folderId);
+    if (tileEl && !tileEl.classList.contains('new-folder-tile')){
+      var fid = tileEl.dataset.folderId;
+      var onName = !!t.closest('.folder-name');
+      if (tileEl.querySelector('.folder-name').isContentEditable) return; // mid-rename
+      if (lastPointerType === 'touch'){
+        openFolder(fid);                        // touch: a tap opens (rename via the board title inside)
+      } else if (e.detail >= 2){
+        /* second click of a double — the dblclick handler opens it */
+      } else if (onName && selectedFolderId === fid){
+        // click the name of the already-selected folder: rename, unless a
+        // double-click lands next and cancels it (see the dblclick handler)
+        clearTimeout(folderRenameTimer);
+        folderRenameTimer = setTimeout(function(){ beginFolderRename(fid); }, 240);
+      } else {
+        setFolderSelection(fid);
+      }
       return;
     }
 
@@ -1643,6 +1713,15 @@
 
     var fmtBtn = t.closest('.fmt-btn');
     if (fmtBtn){ applyFormat(fmtBtn.dataset.fmt); return; }
+  });
+
+  /* double-click a folder to open it (single click only selects) */
+  folderGrid.addEventListener('dblclick', function(e){
+    var tileEl = e.target.closest('.folder-tile');
+    if (!tileEl || tileEl.classList.contains('new-folder-tile')) return;
+    clearTimeout(folderRenameTimer);
+    if (tileEl.querySelector('.folder-name').isContentEditable) return; // let dblclick pick a word while renaming
+    openFolder(tileEl.dataset.folderId);
   });
 
   app.addEventListener('mousedown', function(e){
@@ -2094,6 +2173,17 @@
     var t = e.target;
     if (!t || !t.classList) return;
 
+    // Esc cancels a folder rename, reverting to the name it started with
+    if (e.key === 'Escape' && t.classList.contains('folder-name') && t.isContentEditable){
+      e.preventDefault();
+      if (t.dataset.renameFrom !== undefined && t.innerHTML !== t.dataset.renameFrom){
+        t.innerHTML = t.dataset.renameFrom;
+        syncMirroredField(t);
+      }
+      t.blur();
+      return;
+    }
+
     if (e.key !== 'Enter' || !t.isContentEditable) return;
     if (t.classList.contains('node-caption')){
       e.preventDefault();
@@ -2101,6 +2191,26 @@
     } else if (t.classList.contains('board-title') || t.classList.contains('folder-name') || t.classList.contains('node-title') || t.classList.contains('link-url')){
       e.preventDefault();
       t.blur();
+    }
+  });
+
+  /* keyboard actions on the selected folder (home screen, nothing being edited) */
+  document.addEventListener('keydown', function(e){
+    if (!selectedFolderId) return;
+    if (document.getElementById('home-screen').hidden) return;
+    var ae = document.activeElement;
+    if (ae && (ae.isContentEditable || ae.tagName === 'INPUT')) return;
+    if (e.key === 'Enter'){
+      e.preventDefault(); openFolder(selectedFolderId);
+    } else if (e.key === 'F2'){
+      e.preventDefault(); beginFolderRename(selectedFolderId);
+    } else if (e.key === 'Delete' || e.key === 'Backspace'){
+      e.preventDefault();
+      var tile = folderTileById(selectedFolderId);
+      var del = tile && tile.querySelector('.folder-delete');
+      if (del) del.click();
+    } else if (e.key === 'Escape'){
+      setFolderSelection(null);
     }
   });
   document.addEventListener('blur', function(e){

@@ -662,7 +662,7 @@
           <input class="search-input" id="search-input" type="text" placeholder="Search folders and boxes…" hidden>
         </div>
       </div>
-      <p class="home-sub">Folders of flows. Double-click to open · click to select · click the name again to rename.</p>
+      <p class="home-sub">Folders of flows. Click to select · double-click to open · double-click the name to rename.</p>
     </header>
     <div class="folder-grid" id="folder-grid">
 
@@ -1359,21 +1359,18 @@
        click empty space -> deselect + commit any rename
      On touch there's no hover/keyboard, so a tap just opens. */
   var selectedFolderId = null;
-  var folderRenameTimer = null;
   var lastPointerType = 'mouse';
 
   function folderTileById(id){
     return id ? folderGrid.querySelector('.folder-tile[data-folder-id="' + cssEscape(id) + '"]') : null;
   }
   function setFolderSelection(id){
-    clearTimeout(folderRenameTimer);
     selectedFolderId = id || null;
     folderGrid.querySelectorAll('.folder-tile').forEach(function(t){
       t.classList.toggle('is-selected', !!selectedFolderId && t.dataset.folderId === selectedFolderId);
     });
   }
   function beginFolderRename(id){
-    clearTimeout(folderRenameTimer);
     var tile = folderTileById(id);
     var nameEl = tile && tile.querySelector('.folder-name');
     if (!nameEl) return;
@@ -1629,15 +1626,8 @@
       if (tileEl.querySelector('.folder-name').isContentEditable) return; // mid-rename
       if (lastPointerType === 'touch'){
         openFolder(fid);                        // touch: a tap opens (rename via the board title inside)
-      } else if (e.detail >= 2){
-        /* second click of a double — the dblclick handler opens it */
-      } else if (onName && selectedFolderId === fid){
-        // click the name of the already-selected folder: rename, unless a
-        // double-click lands next and cancels it (see the dblclick handler)
-        clearTimeout(folderRenameTimer);
-        folderRenameTimer = setTimeout(function(){ beginFolderRename(fid); }, 240);
-      } else {
-        setFolderSelection(fid);
+      } else if (e.detail < 2){
+        setFolderSelection(fid);                // single click just selects; dblclick handles open/rename
       }
       return;
     }
@@ -1715,13 +1705,18 @@
     if (fmtBtn){ applyFormat(fmtBtn.dataset.fmt); return; }
   });
 
-  /* double-click a folder to open it (single click only selects) */
+  /* double-click the name to rename, double-click anywhere else on the tile
+     to open it (single click only selects) */
   folderGrid.addEventListener('dblclick', function(e){
     var tileEl = e.target.closest('.folder-tile');
     if (!tileEl || tileEl.classList.contains('new-folder-tile')) return;
-    clearTimeout(folderRenameTimer);
-    if (tileEl.querySelector('.folder-name').isContentEditable) return; // let dblclick pick a word while renaming
-    openFolder(tileEl.dataset.folderId);
+    var nameEl = tileEl.querySelector('.folder-name');
+    if (nameEl.isContentEditable) return; // already renaming — let dblclick pick a word
+    if (e.target.closest('.folder-name')){
+      beginFolderRename(tileEl.dataset.folderId);
+    } else {
+      openFolder(tileEl.dataset.folderId);
+    }
   });
 
   app.addEventListener('mousedown', function(e){

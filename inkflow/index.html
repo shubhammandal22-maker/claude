@@ -2,7 +2,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,500;12..96,600;12..96,700;12..96,800&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,500;12..96,600;12..96,700;12..96,800&family=IBM+Plex+Mono:wght@400;500;600&family=Caveat:wght@600;700&display=swap">
 <style>
   :root{
     --bg:#F3F0E7; --bg-dot:rgba(35,32,26,0.16);
@@ -351,6 +351,19 @@
   }
   .rail-hint{ color:var(--ink-faint); font-size:0.68rem; line-height:1.6; margin:0; }
 
+  /* drawer handle for the tool rail — only shown on phones (see media query) */
+  .rail-toggle{
+    display:none;
+    align-items:center; justify-content:center; gap:8px;
+    width:100%; border:1.5px solid var(--border); background:var(--surface);
+    color:var(--ink-soft); border-radius:8px; padding:7px 10px; cursor:pointer;
+    font-family:'IBM Plex Mono', monospace; font-size:0.64rem;
+    letter-spacing:0.09em; text-transform:uppercase;
+  }
+  .rail-toggle:hover{ border-color:var(--accent); color:var(--accent-ink); }
+  .rail-toggle svg{ width:15px; height:15px; transition:transform 0.28s ease; }
+  .board-screen.rail-open .rail-toggle svg{ transform:rotate(180deg); }
+
   .arrow-tip{
     position:fixed; z-index:60; pointer-events:none;
     background:var(--ink); color:var(--surface);
@@ -380,6 +393,90 @@
   .confirm-btn:hover{ border-color:var(--accent); color:var(--accent-ink); }
   .confirm-btn.confirm-danger{ background:var(--danger); border-color:var(--danger); color:#fff; }
   .confirm-btn.confirm-danger:hover{ opacity:0.88; color:#fff; }
+
+  /* ---------- suggestion envelope ---------- */
+  .suggest-fab{
+    position:fixed; left:50%; bottom:16px; transform:translateX(-50%); z-index:50;
+    display:flex; align-items:center; gap:7px;
+    background:var(--surface); border:1.5px solid var(--border); border-radius:999px;
+    padding:8px 16px 8px 12px; color:var(--ink-soft); cursor:pointer;
+    font-family:'IBM Plex Mono', monospace; font-size:0.74rem; letter-spacing:0.02em;
+    box-shadow:0 6px 18px var(--shadow); transition:transform 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+  }
+  .suggest-fab svg{ color:var(--accent); flex:none; }
+  .suggest-fab:hover{ border-color:var(--accent); color:var(--accent-ink); transform:translateX(-50%) translateY(-2px); }
+
+  .suggest-overlay{
+    position:fixed; inset:0; z-index:110; background:rgba(20,18,14,0.5);
+    display:flex; align-items:center; justify-content:center; padding:16px;
+  }
+  .suggest-overlay[hidden]{ display:none; }
+
+  .envelope{
+    position:relative; width:min(68vw, 760px); height:min(72vh, 660px);
+    max-width:96vw; max-height:94vh; min-height:440px;
+    display:flex; flex-direction:column;
+    filter:drop-shadow(0 24px 50px var(--shadow));
+    animation:envelope-in 0.28s cubic-bezier(.2,.9,.3,1.2);
+  }
+  @keyframes envelope-in{ from{ opacity:0; transform:translateY(14px) scale(0.97); } to{ opacity:1; transform:none; } }
+
+  .envelope-flap{
+    height:16%; min-height:56px; flex:none;
+    background:linear-gradient(135deg, var(--accent), var(--accent-ink));
+    clip-path:polygon(0 0, 100% 0, 50% 100%);
+    border-radius:16px 16px 0 0;
+  }
+  .envelope-seal{
+    position:absolute; left:50%; top:calc(16% - 21px); transform:translateX(-50%);
+    width:42px; height:42px; border-radius:50%; z-index:2;
+    background:var(--surface); border:2px solid var(--accent);
+    display:flex; align-items:center; justify-content:center; font-size:1.1rem;
+    box-shadow:0 4px 10px var(--shadow);
+  }
+  .envelope-body{
+    flex:1; min-height:0; background:var(--surface); border:1.5px solid var(--border); border-top:none;
+    border-radius:0 0 16px 16px; margin-top:-1px; padding:30px 30px 22px;
+    display:flex; flex-direction:column; position:relative; overflow:auto;
+  }
+  .envelope-close{
+    position:absolute; top:12px; right:14px; width:26px; height:26px; border-radius:50%;
+    background:none; border:none; color:var(--ink-faint); cursor:pointer; font-size:1.1rem;
+    display:flex; align-items:center; justify-content:center; line-height:1;
+  }
+  .envelope-close:hover{ color:var(--accent); background:var(--surface-2); }
+  .envelope-title{
+    font-family:'Caveat', 'Bricolage Grotesque', cursive; font-weight:700; font-size:2rem;
+    color:var(--ink); margin:8px 0 2px; text-align:center;
+  }
+  .envelope-sub{
+    margin:0 0 16px; text-align:center; color:var(--ink-soft); font-size:0.8rem; line-height:1.5;
+  }
+  .envelope-textarea{
+    flex:1; min-height:120px; resize:none; width:100%;
+    background:var(--surface-2); border:1.5px solid var(--border); border-radius:10px;
+    padding:14px 16px; color:var(--ink); font-family:'IBM Plex Mono', monospace; font-size:0.86rem;
+    line-height:1.7; background-image:repeating-linear-gradient(var(--surface-2) 0, var(--surface-2) calc(1.7em - 1px), var(--border) calc(1.7em - 1px), var(--border) 1.7em);
+    background-position:0 4px;
+  }
+  .envelope-textarea:focus{ border-color:var(--accent); }
+  .envelope-email{
+    margin-top:10px; background:var(--surface); border:1.5px solid var(--border); border-radius:8px;
+    padding:9px 12px; color:var(--ink); font-family:'IBM Plex Mono', monospace; font-size:0.78rem;
+  }
+  .envelope-email:focus{ border-color:var(--accent); }
+  .envelope-email::placeholder, .envelope-textarea::placeholder{ color:var(--ink-faint); }
+  .envelope-actions{ display:flex; align-items:center; justify-content:space-between; gap:10px; margin-top:14px; }
+  .envelope-status{ margin:0; font-size:0.74rem; color:var(--ink-soft); flex:1; }
+  .envelope-status.is-error{ color:var(--danger); }
+  .envelope-status.is-ok{ color:var(--accent-ink); }
+  .envelope-send{
+    background:var(--accent); border:1.5px solid var(--accent); color:#fff; cursor:pointer;
+    border-radius:999px; padding:10px 20px; font-family:'IBM Plex Mono', monospace; font-weight:500;
+    font-size:0.8rem; display:flex; align-items:center; gap:8px; flex:none;
+  }
+  .envelope-send:hover{ opacity:0.9; }
+  .envelope-send:disabled{ opacity:0.55; cursor:default; }
 
   .canvas-viewport{
     position:relative; z-index:2; flex:1; height:100%; overflow:hidden; cursor:default;
@@ -547,19 +644,28 @@
 
     .cloud-chip{ flex-wrap:wrap; justify-content:center; max-width:88vw; }
 
-    /* board: a compact tool strip on top, canvas takes the rest of the screen */
+    /* board: the tool rail collapses into a top drawer, canvas gets the screen */
     .board-screen{ flex-direction:column; }
     .title-rail{
       width:100%; height:auto; flex:none;
       flex-direction:column; justify-content:flex-start; gap:9px;
       padding:46px 12px 10px;
       border-right:none; border-bottom:1.5px solid var(--border);
-      max-height:52vh; overflow-y:auto;
       position:relative; z-index:5;        /* cover any arrow lines drawn beneath */
     }
     .title-wrap{ flex:none; }
     .board-title{ font-size:1.25rem; line-height:1.2; }
-    .rail-tools{ gap:8px; }
+    .rail-toggle{ display:flex; }
+    .rail-tools{
+      gap:8px;
+      overflow:hidden;
+      max-height:0; opacity:0; margin-top:-9px;
+      transition:max-height 0.28s ease, opacity 0.18s ease, margin-top 0.28s ease;
+    }
+    .board-screen.rail-open .rail-tools{
+      max-height:60vh; overflow-y:auto;
+      opacity:1; margin-top:0;
+    }
     .tool-row{ gap:6px; }
     .tool-btn{ padding:8px 6px; font-size:0.7rem; letter-spacing:0.01em; }
     .rail-label{ margin-bottom:4px; }
@@ -576,6 +682,12 @@
     .confirm-box{ max-width:min(300px, calc(100vw - 32px)); }
     .auth-card{ padding:30px 22px; gap:16px; }
     .auth-mark{ font-size:2.8rem; }
+
+    .suggest-fab span{ display:none; }
+    .suggest-fab{ padding:9px; }
+    .envelope{ width:92vw; height:80vh; }
+    .envelope-body{ padding:24px 18px 18px; }
+    .envelope-title{ font-size:1.7rem; }
   }
 </style>
 
@@ -592,6 +704,11 @@
   </button>
   <button class="theme-toggle" id="theme-toggle" type="button" aria-label="Toggle theme">
     <svg id="theme-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4.2"/><path d="M12 2.5v2.6M12 18.9v2.6M4.6 4.6l1.85 1.85M17.55 17.55l1.85 1.85M2.5 12h2.6M18.9 12h2.6M4.6 19.4l1.85-1.85M17.55 6.45l1.85-1.85"/></svg>
+  </button>
+
+  <button class="suggest-fab" id="suggest-fab" type="button" aria-label="Send a suggestion">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" width="17" height="17"><rect x="2.5" y="5" width="19" height="14" rx="2.5"/><path d="M3 6.5l9 6.5 9-6.5"/></svg>
+    <span>Suggest something</span>
   </button>
 
   <div class="arrow-tip" id="arrow-tip" hidden>Delete</div>
@@ -615,6 +732,24 @@
       <div class="confirm-actions">
         <button class="confirm-btn confirm-cancel" id="profile-editor-cancel" type="button">Cancel</button>
         <button class="confirm-btn confirm-primary" id="profile-editor-create" type="button">Create</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="suggest-overlay" id="suggest-overlay" hidden>
+    <div class="envelope">
+      <div class="envelope-flap"></div>
+      <div class="envelope-seal" aria-hidden="true">💌</div>
+      <div class="envelope-body">
+        <button class="envelope-close" id="suggest-close" type="button" aria-label="Close">×</button>
+        <h2 class="envelope-title">Got an idea?</h2>
+        <p class="envelope-sub">Bugs, features, anything you'd love to see — it goes straight to my inbox.</p>
+        <textarea class="envelope-textarea" id="suggest-message" maxlength="2000" placeholder="Dear Inkflow…" spellcheck="true"></textarea>
+        <input class="envelope-email" id="suggest-email" type="email" placeholder="Your email (optional, if you'd like a reply)" spellcheck="false">
+        <div class="envelope-actions">
+          <p class="envelope-status" id="suggest-status"></p>
+          <button class="envelope-send" id="suggest-send" type="button">Send letter <span aria-hidden="true">✈</span></button>
+        </div>
       </div>
     </div>
   </div>
@@ -685,6 +820,7 @@
       <button class="back-btn" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>Folders</button>
       <div class="title-rail">
         <div class="title-wrap"><h2 class="board-title" contenteditable="true" spellcheck="false">Welcome</h2></div>
+        <button class="rail-toggle" type="button" aria-expanded="false"><span class="rail-toggle-label">Tools</span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg></button>
         <div class="rail-tools">
           <div class="tool-row">
             <button class="tool-btn add-box-btn" type="button">+ Box</button>
@@ -719,7 +855,7 @@
             <span class="zoom-level">100%</span>
             <button class="tool-btn zoom-in" type="button" aria-label="Zoom in">+</button>
           </div>
-          <p class="rail-hint">Drag a box by its top bar or side edges · click a title to rename it · click the dot on top to link boxes · select text to format or resize it, just like a document · paste an image anywhere · scroll to zoom</p>
+          <p class="rail-hint">Drag a box by its top bar or side edges · click a title to rename it · click the dot on top to link boxes · select text to format or resize it, just like a document · paste an image anywhere · pinch or scroll to zoom</p>
         </div>
       </div>
       <div class="canvas-viewport">
@@ -777,6 +913,7 @@
     <button class="back-btn" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>Folders</button>
     <div class="title-rail">
       <div class="title-wrap"><h2 class="board-title" contenteditable="true" spellcheck="false"></h2></div>
+      <button class="rail-toggle" type="button" aria-expanded="false"><span class="rail-toggle-label">Tools</span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg></button>
       <div class="rail-tools">
         <div class="tool-row">
           <button class="tool-btn add-box-btn" type="button">+ Box</button>
@@ -811,7 +948,7 @@
           <span class="zoom-level">100%</span>
           <button class="tool-btn zoom-in" type="button" aria-label="Zoom in">+</button>
         </div>
-        <p class="rail-hint">Drag a box by its top bar or side edges · click a title to rename it · click the dot on top to link boxes · select text to format or resize it, just like a document · paste an image anywhere · scroll to zoom</p>
+        <p class="rail-hint">Drag a box by its top bar or side edges · click a title to rename it · click the dot on top to link boxes · select text to format or resize it, just like a document · paste an image anywhere · pinch or scroll to zoom</p>
       </div>
     </div>
     <div class="canvas-viewport">
@@ -2323,6 +2460,19 @@
     }
   }, true);
 
+  /* ---------- mobile: open / close the tool-rail drawer ---------- */
+  document.addEventListener('click', function(e){
+    var btn = e.target.closest && e.target.closest('.rail-toggle');
+    if (!btn) return;
+    var board = btn.closest('.board-screen');
+    if (!board) return;
+    var open = board.classList.toggle('rail-open');
+    btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+    scheduleArrowUpdate(board);
+    // the drawer animates the canvas size for ~0.28s — keep arrows tracking
+    setTimeout(function(){ scheduleArrowUpdate(board); }, 300);
+  });
+
   /* ---------- left-rail formatting bar ---------- */
   /* node-body is one free-form rich-text field per box, like a document:
      formatting applies to the current text selection via execCommand,
@@ -2624,6 +2774,12 @@
 
   /* ---------- dragging nodes, resizing, panning canvas ---------- */
   app.addEventListener('pointerdown', function(e){
+    // a second finger landing anywhere in the viewport joins an in-progress
+    // pan and turns it into a pinch-zoom — even if it lands on a box
+    if (canvasGesture){
+      var vp = e.target.closest('.canvas-viewport');
+      if (vp && vp === canvasGesture.viewport){ startCanvasPan(e, vp); return; }
+    }
     var folderTile = e.target.closest('.folder-tile');
     if (folderTile && folderTile.parentNode === folderGrid && !folderTile.classList.contains('new-folder-tile')
         && !e.target.closest('.folder-delete') && !e.target.closest('.folder-name')){
@@ -2636,9 +2792,18 @@
       return;
     }
     var handle = e.target.closest('.node-bar');
-    if (handle && !e.target.closest('.node-delete') && !e.target.closest('.node-title')){
-      startNodeDrag(e, handle.closest('.node'));
-      return;
+    if (handle && !e.target.closest('.node-delete')){
+      var barNode = handle.closest('.node');
+      if (!e.target.closest('.node-title')){
+        startNodeDrag(e, barNode);
+        return;
+      }
+      // the title fills the whole bar — on touch, a drag that starts on it
+      // should still move the box (a plain tap opens it for editing)
+      if (e.pointerType === 'touch'){
+        startTitleTouch(e, barNode);
+        return;
+      }
     }
     var edge = e.target.closest('.node-edge');
     if (edge){
@@ -2655,6 +2820,39 @@
       startCanvasPan(e, viewport);
     }
   });
+
+  /* Touch press that lands on a box's title: if the finger travels, hand off to
+     a normal box drag; if it stays put, it was a tap and the browser focuses
+     the title for editing as usual. */
+  function startTitleTouch(e, node){
+    var pointerId = e.pointerId;
+    var startX = e.clientX, startY = e.clientY;
+    var handedOff = false;
+    function cleanup(){
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerup', onUp);
+      window.removeEventListener('pointercancel', onUp);
+    }
+    function onMove(ev){
+      if (ev.pointerId !== pointerId || handedOff) return;
+      if (Math.abs(ev.clientX - startX) < 6 && Math.abs(ev.clientY - startY) < 6) return;
+      handedOff = true;
+      cleanup();
+      startNodeDrag({ pointerType: 'touch', pointerId: pointerId,
+        clientX: startX, clientY: startY, preventDefault: function(){} }, node);
+      // swallow the click that would otherwise focus the title after the drag
+      var title = node.querySelector('.node-title');
+      if (title){
+        var block = function(ce){ ce.preventDefault(); ce.stopPropagation(); };
+        title.addEventListener('click', block, true);
+        setTimeout(function(){ title.removeEventListener('click', block, true); }, 400);
+      }
+    }
+    function onUp(ev){ if (ev.pointerId === pointerId) cleanup(); }
+    window.addEventListener('pointermove', onMove);
+    window.addEventListener('pointerup', onUp);
+    window.addEventListener('pointercancel', onUp);
+  }
 
   function startNodeDrag(e, node){
     e.preventDefault();
@@ -2750,30 +2948,91 @@
     if (zoomLabel) zoomLabel.textContent = Math.round(s * 100) + '%';
   }
 
+  /* One unified gesture: one pointer drags to pan, a second pointer turns it
+     into a pinch-zoom (touch / trackpad). Pointers are tracked in a map so a
+     finger can join or leave mid-gesture without losing the canvas position. */
+  var canvasGesture = null;
+
   function startCanvasPan(e, viewport){
     e.preventDefault();
-    blurActiveEditable();
-    var stage = viewport.querySelector('.canvas-stage');
-    var boardEl = viewport.closest('.board-screen');
-    viewport.classList.add('panning');
-    var startX = e.clientX, startY = e.clientY;
-    var baseX = parseFloat(stage.dataset.panX || '0');
-    var baseY = parseFloat(stage.dataset.panY || '0');
-    function onMove(ev){
-      stage.dataset.panX = baseX + (ev.clientX - startX);
-      stage.dataset.panY = baseY + (ev.clientY - startY);
-      applyStageTransform(stage);
-      scheduleArrowUpdate(boardEl);
+    if (!canvasGesture){
+      blurActiveEditable();
+      var stage = viewport.querySelector('.canvas-stage');
+      canvasGesture = {
+        viewport: viewport,
+        stage: stage,
+        boardEl: viewport.closest('.board-screen'),
+        pointers: new Map()
+      };
+      viewport.classList.add('panning');
+      window.addEventListener('pointermove', moveCanvasGesture);
+      window.addEventListener('pointerup', endCanvasGesture);
+      window.addEventListener('pointercancel', endCanvasGesture);
     }
-    function onUp(){
-      viewport.classList.remove('panning');
-      window.removeEventListener('pointermove', onMove);
-      window.removeEventListener('pointerup', onUp);
-      window.removeEventListener('pointercancel', onUp);
+    canvasGesture.pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    rebaseCanvasGesture();
+  }
+
+  /* snapshot the current pan/zoom + pointer anchors so the next move is relative
+     to this instant — called whenever the set of active pointers changes */
+  function rebaseCanvasGesture(){
+    var g = canvasGesture;
+    if (!g) return;
+    g.baseX = parseFloat(g.stage.dataset.panX || '0');
+    g.baseY = parseFloat(g.stage.dataset.panY || '0');
+    g.baseScale = parseFloat(g.stage.dataset.scale || '1') || 1;
+    var pts = Array.from(g.pointers.values());
+    if (pts.length >= 2){
+      g.startDist = Math.max(1, Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y));
+      g.startCX = (pts[0].x + pts[1].x) / 2;
+      g.startCY = (pts[0].y + pts[1].y) / 2;
+    } else if (pts.length === 1){
+      g.startCX = pts[0].x;
+      g.startCY = pts[0].y;
+      g.startDist = 0;
     }
-    window.addEventListener('pointermove', onMove);
-    window.addEventListener('pointerup', onUp);
-    window.addEventListener('pointercancel', onUp);
+  }
+
+  function moveCanvasGesture(ev){
+    var g = canvasGesture;
+    if (!g || !g.pointers.has(ev.pointerId)) return;
+    g.pointers.set(ev.pointerId, { x: ev.clientX, y: ev.clientY });
+    var pts = Array.from(g.pointers.values());
+    var rect = g.viewport.getBoundingClientRect();
+    if (pts.length >= 2 && g.startDist){
+      var dist = Math.max(1, Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y));
+      var cx = (pts[0].x + pts[1].x) / 2;
+      var cy = (pts[0].y + pts[1].y) / 2;
+      var scale = Math.max(0.35, Math.min(2.5, g.baseScale * (dist / g.startDist)));
+      // keep the point that was under the pinch centre pinned as we scale,
+      // and let the centre itself drag the canvas
+      var ax = (g.startCX - rect.left - g.baseX) / g.baseScale;
+      var ay = (g.startCY - rect.top - g.baseY) / g.baseScale;
+      g.stage.dataset.scale = scale;
+      g.stage.dataset.panX = (cx - rect.left) - ax * scale;
+      g.stage.dataset.panY = (cy - rect.top) - ay * scale;
+    } else {
+      var p = pts[0];
+      g.stage.dataset.panX = g.baseX + (p.x - g.startCX);
+      g.stage.dataset.panY = g.baseY + (p.y - g.startCY);
+    }
+    applyStageTransform(g.stage);
+    scheduleArrowUpdate(g.boardEl);
+  }
+
+  function endCanvasGesture(ev){
+    var g = canvasGesture;
+    if (!g) return;
+    g.pointers.delete(ev.pointerId);
+    if (g.pointers.size === 0){
+      g.viewport.classList.remove('panning');
+      window.removeEventListener('pointermove', moveCanvasGesture);
+      window.removeEventListener('pointerup', endCanvasGesture);
+      window.removeEventListener('pointercancel', endCanvasGesture);
+      canvasGesture = null;
+    } else {
+      rebaseCanvasGesture();
+    }
   }
 
   function nudgeZoom(boardEl, delta){
@@ -2942,6 +3201,91 @@
 })();
 </script>
 
+<script>
+(function(){
+  "use strict";
+  // Suggestion box: static-site form submission via Formspree (https://formspree.io),
+  // form points at shubhammandal22@gmail.com.
+  var FORMSPREE_ENDPOINT = 'https://formspree.io/f/myeyojpk';
+
+  var fab = document.getElementById('suggest-fab');
+  var overlay = document.getElementById('suggest-overlay');
+  var closeBtn = document.getElementById('suggest-close');
+  var messageEl = document.getElementById('suggest-message');
+  var emailEl = document.getElementById('suggest-email');
+  var sendBtn = document.getElementById('suggest-send');
+  var statusEl = document.getElementById('suggest-status');
+  if (!fab || !overlay) return;
+
+  function openEnvelope(){
+    overlay.hidden = false;
+    statusEl.textContent = '';
+    statusEl.className = 'envelope-status';
+    setTimeout(function(){ messageEl.focus(); }, 30);
+  }
+  function closeEnvelope(){ overlay.hidden = true; }
+
+  fab.addEventListener('click', openEnvelope);
+  closeBtn.addEventListener('click', closeEnvelope);
+  overlay.addEventListener('click', function(e){ if (e.target === overlay) closeEnvelope(); });
+  document.addEventListener('keydown', function(e){
+    if (e.key === 'Escape' && !overlay.hidden) closeEnvelope();
+  });
+
+  function mailtoFallback(message, email){
+    var body = message + (email ? '\n\n— reply to: ' + email : '');
+    return 'mailto:shubhammandal22@gmail.com?subject=' + encodeURIComponent('Inkflow suggestion') +
+      '&body=' + encodeURIComponent(body);
+  }
+
+  sendBtn.addEventListener('click', function(){
+    var message = messageEl.value.trim();
+    var email = emailEl.value.trim();
+    if (!message){
+      statusEl.textContent = "Write something first — I'd love to hear it.";
+      statusEl.className = 'envelope-status is-error';
+      messageEl.focus();
+      return;
+    }
+    if (FORMSPREE_ENDPOINT.indexOf('REPLACE_WITH_FORM_ID') !== -1){
+      // Formspree not wired up yet — fall back to opening the user's own mail app.
+      window.location.href = mailtoFallback(message, email);
+      statusEl.textContent = 'Opening your email app…';
+      statusEl.className = 'envelope-status';
+      return;
+    }
+    sendBtn.disabled = true;
+    statusEl.textContent = 'Sending…';
+    statusEl.className = 'envelope-status';
+    fetch(FORMSPREE_ENDPOINT, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+      body: JSON.stringify({
+        message: message,
+        _replyto: email || undefined,
+        _subject: 'New Inkflow suggestion'
+      })
+    }).then(function(res){
+      sendBtn.disabled = false;
+      if (res.ok){
+        statusEl.textContent = 'Sent — thank you! 💌';
+        statusEl.className = 'envelope-status is-ok';
+        messageEl.value = '';
+        emailEl.value = '';
+        setTimeout(closeEnvelope, 1400);
+      } else {
+        statusEl.textContent = "Couldn't send that — try again, or email me directly.";
+        statusEl.className = 'envelope-status is-error';
+      }
+    }).catch(function(){
+      sendBtn.disabled = false;
+      statusEl.textContent = "Couldn't send that — try again, or email me directly.";
+      statusEl.className = 'envelope-status is-error';
+    });
+  });
+})();
+</script>
+
 <script type="module">
 /* ============================================================================
    Inkflow cloud sync  —  optional "Sign in with Google" backup + cross-device
@@ -3012,14 +3356,28 @@ async function boot(){
   const cloudMirror = {};          // cloudMirror[profileId][folderId] = canonical JSON we believe is in Firestore
   const knownCloudProfiles = new Set();
 
+  // phones / tablets / in-app browsers: popups are unreliable there, so go
+  // straight to a full-page redirect — that's what makes sign-in (and therefore
+  // cloud sync) actually work on mobile
+  const preferRedirect = window.matchMedia('(pointer: coarse)').matches
+    || /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+
   signInBtn.addEventListener('click', async () => {
     signInBtn.disabled = true;
     try {
+      if (preferRedirect){
+        await signInWithRedirect(auth, provider);
+        return;                       // page navigates away; resumes via getRedirectResult
+      }
       await signInWithPopup(auth, provider);
     } catch (e){
-      if (e && (e.code === 'auth/popup-blocked' || e.code === 'auth/cancelled-popup-request')){
-        try { await signInWithRedirect(auth, provider); return; } catch(e2){ e = e2; }
+      // the user closing the popup themselves isn't a failure worth retrying
+      if (e && (e.code === 'auth/popup-closed-by-user' || e.code === 'auth/cancelled-popup-request')){
+        signInBtn.disabled = false;
+        return;
       }
+      // anything else (blocked popup, unsupported env, network) -> try redirect
+      try { await signInWithRedirect(auth, provider); return; } catch(e2){ e = e2; }
       console.warn('[inkflow-sync] sign-in failed', e);
       toast("Couldn't sign in. Please try again.");
     } finally {

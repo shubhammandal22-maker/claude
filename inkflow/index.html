@@ -396,7 +396,7 @@
 
   /* ---------- suggestion envelope ---------- */
   .suggest-fab{
-    position:fixed; left:50%; bottom:16px; transform:translateX(-50%); z-index:50;
+    position:fixed; right:18px; bottom:16px; z-index:50;
     display:flex; align-items:center; gap:7px;
     background:var(--surface); border:1.5px solid var(--border); border-radius:999px;
     padding:8px 16px 8px 12px; color:var(--ink-soft); cursor:pointer;
@@ -404,7 +404,7 @@
     box-shadow:0 6px 18px var(--shadow); transition:transform 0.15s ease, border-color 0.15s ease, color 0.15s ease;
   }
   .suggest-fab svg{ color:var(--accent); flex:none; }
-  .suggest-fab:hover{ border-color:var(--accent); color:var(--accent-ink); transform:translateX(-50%) translateY(-2px); }
+  .suggest-fab:hover{ border-color:var(--accent); color:var(--accent-ink); transform:translateY(-2px); }
 
   .suggest-overlay{
     position:fixed; inset:0; z-index:110; background:rgba(20,18,14,0.5);
@@ -421,22 +421,9 @@
   }
   @keyframes envelope-in{ from{ opacity:0; transform:translateY(14px) scale(0.97); } to{ opacity:1; transform:none; } }
 
-  .envelope-flap{
-    height:16%; min-height:56px; flex:none;
-    background:linear-gradient(135deg, var(--accent), var(--accent-ink));
-    clip-path:polygon(0 0, 100% 0, 50% 100%);
-    border-radius:16px 16px 0 0;
-  }
-  .envelope-seal{
-    position:absolute; left:50%; top:calc(16% - 21px); transform:translateX(-50%);
-    width:42px; height:42px; border-radius:50%; z-index:2;
-    background:var(--surface); border:2px solid var(--accent);
-    display:flex; align-items:center; justify-content:center; font-size:1.1rem;
-    box-shadow:0 4px 10px var(--shadow);
-  }
   .envelope-body{
-    flex:1; min-height:0; background:var(--surface); border:1.5px solid var(--border); border-top:none;
-    border-radius:0 0 16px 16px; margin-top:-1px; padding:30px 30px 22px;
+    flex:1; min-height:0; background:var(--surface); border:1.5px solid var(--border);
+    border-radius:16px; padding:30px 30px 22px;
     display:flex; flex-direction:column; position:relative; overflow:auto;
   }
   .envelope-close{
@@ -456,8 +443,8 @@
     flex:1; min-height:120px; resize:none; width:100%;
     background:var(--surface-2); border:1.5px solid var(--border); border-radius:10px;
     padding:14px 16px; color:var(--ink); font-family:'IBM Plex Mono', monospace; font-size:0.86rem;
-    line-height:1.7; background-image:repeating-linear-gradient(var(--surface-2) 0, var(--surface-2) calc(1.7em - 1px), var(--border) calc(1.7em - 1px), var(--border) 1.7em);
-    background-position:0 4px;
+    line-height:1.7; background-image:repeating-linear-gradient(var(--surface-2) 0, var(--surface-2) calc(1.3em - 1px), var(--border) calc(1.3em - 1px), var(--border) 1.3em, var(--surface-2) 1.3em, var(--surface-2) 1.7em);
+    background-position:0 14px;
   }
   .envelope-textarea:focus{ border-color:var(--accent); }
   .envelope-email{
@@ -684,7 +671,7 @@
     .auth-mark{ font-size:2.8rem; }
 
     .suggest-fab span{ display:none; }
-    .suggest-fab{ padding:9px; }
+    .suggest-fab{ padding:9px; right:12px; }
     .envelope{ width:92vw; height:80vh; }
     .envelope-body{ padding:24px 18px 18px; }
     .envelope-title{ font-size:1.7rem; }
@@ -738,12 +725,10 @@
 
   <div class="suggest-overlay" id="suggest-overlay" hidden>
     <div class="envelope">
-      <div class="envelope-flap"></div>
-      <div class="envelope-seal" aria-hidden="true">💌</div>
       <div class="envelope-body">
         <button class="envelope-close" id="suggest-close" type="button" aria-label="Close">×</button>
         <h2 class="envelope-title">Got an idea?</h2>
-        <p class="envelope-sub">Bugs, features, anything you'd love to see — it goes straight to my inbox.</p>
+        <p class="envelope-sub">Bugs, features, anything you'd love to see — it goes straight to me.</p>
         <textarea class="envelope-textarea" id="suggest-message" maxlength="2000" placeholder="Dear Inkflow…" spellcheck="true"></textarea>
         <input class="envelope-email" id="suggest-email" type="email" placeholder="Your email (optional, if you'd like a reply)" spellcheck="false">
         <div class="envelope-actions">
